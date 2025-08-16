@@ -238,9 +238,57 @@ let QUANTIZE_PRESET: [Difficulty: QuantizeConfig] = [
 **NEVER**: `Info.plist`/署名/Entitlements を無断変更。
 
 **重要な実装ノート**:
-- **非同期処理**：UIフリーズを防ぐため、重い処理は `DispatchQueue.global()` でバックグラウンド実行。
+
+- **非同期処理**：UI フリーズを防ぐため、重い処理は `DispatchQueue.global()` でバックグラウンド実行。
 - **デッドロック防止**：同期的な while ループやメインスレッドブロックを防ぐ。
-- **GamePieceProvider**：連続ゲームループのために必須。CaptureViewが実装しGameCoreが使用。
+- **GamePieceProvider**：連続ゲームループのために必須。CaptureView が実装し GameCore が使用。
+
+### 12.1 外部検索（Gemini Search）
+
+**目的**  
+Web 検索が必要な場面では、**組み込みの `Web_Search` ツールは使用せず**、Google Gemini CLI（コマンド名: `gemini`）を **Task Tool 経由**で必ず使用します。
+
+**ポリシー**
+
+- **YOU MUST**: Web 検索が必要なときは **常に `gemini --prompt` を Task Tool 経由で実行**すること。
+- **NEVER**: 組み込みの `Web_Search` を使わない。`gemini` が使えない場合は **理由を日本語で報告**し、指示があるまで代替手段に自動で切り替えない。
+
+**呼び出し規則（Task Tool 経由）**
+
+- 実行形式:
+
+```bash
+gemini --prompt "WebSearch: <query>"
+```
+
+- 例:
+
+```bash
+gemini --prompt "WebSearch: Vision VNGeneratePersonSegmentationRequest iOS18 site:developer.apple.com"
+gemini --prompt "WebSearch: SpriteKit line clear animation best practices"
+gemini --prompt "WebSearch: SwiftData migration iOS18 since:2024-01-01"
+```
+
+**クエリ作法**
+
+- **日本語でまず検索**し、必要に応じて **英語クエリも追加**（2 本投げ可）。
+- サイト指定: `site:developer.apple.com`, `site:docs.swift.org`, `site:swift.org`, `site:developer.apple.com/videos` など。
+- 時間指定が必要な場合は、CLI の仕様に従って `since:` などの修飾を付加。
+- プライバシー: **個人情報や秘密情報をクエリに含めない**。
+
+**結果の取り扱い（出力フォーマット）**
+
+- まず **日本語で 3〜5 行の要約**を提示。
+- 続けて **参考リンクの箇条書き**（_タイトル — 出典 — URL — （判明すれば）公開日_）。
+- コード引用は **25 行未満**に留める。必要があれば要約＋要点抜粋に切り替える。
+
+**障害時の扱い**
+
+- `gemini` が見つからない／非ゼロ終了／認証エラー等 →
+
+  1. **エラー内容を日本語で報告**
+  2. 必要な対処（インストール/認証/再実行手順）を簡潔に提示
+  3. **自動で `Web_Search` にフォールバックしない**（指示待ち）
 
 ---
 
@@ -285,38 +333,48 @@ xcodebuild test -project human-tetris.xcodeproj \
 
 - 2025-08-16: `./specification.md` 反映。Capture/量子化/探索/ヒント/難易度/スコア/性能/DoD を追記。
 - 2025-08-16: 日本語運用／iOS 18.6 前提ガードレールを確定。
-- 2025-08-16: **連続ゲームループ実装完了** - GamePieceProviderプロトコルとPieceQueueシステムによる自動ピース生成。
-- 2025-08-16: **UIフリーズ問題解決** - 非同期処理によるsetPieceProviderデッドロックの修正。
+- 2025-08-16: **連続ゲームループ実装完了** - GamePieceProvider プロトコルと PieceQueue システムによる自動ピース生成。
+- 2025-08-16: **UI フリーズ問題解決** - 非同期処理による setPieceProvider デッドロックの修正。
 
-## 15. 実装完了済み機能（2025-08-16現在）
+## 15. 実装完了済み機能（2025-08-16 現在）
 
 ✅ **基本システム**
-- 10×20盤面、衝突判定、ライン消去ロジック（GameCore.swift）
+
+- 10×20 盤面、衝突判定、ライン消去ロジック（GameCore.swift）
 - 左右移動・回転操作・ウォールキック（GameCore.swift:132-156）
-- 可変ポリオミノ（3-6セル）対応（Polyomino.swift）
+- 可変ポリオミノ（3-6 セル）対応（Polyomino.swift）
 
 ✅ **カメラ・認識システム**
+
 - AVFoundation カメラプレビュー・フレーム取得（CameraManager.swift）
 - Vision 人物セグメンテーション・骨格推定（VisionProcessor.swift）
 - 3×4 量子化・連結成分抽出（QuantizationProcessor.swift, ShapeExtractor.swift）
 
 ✅ **連続ゲームループ**
+
 - GamePieceProvider プロトコル（GamePieceProvider.swift:10-13）
 - PieceQueue 非同期事前生成・管理（GamePieceProvider.swift:16-91）
-- CaptureView Provider実装（CaptureView.swift:228-294）
+- CaptureView Provider 実装（CaptureView.swift:228-294）
 - GameCore 自動次ピース要求（GameCore.swift:86-114）
 
 ✅ **UI/UX**
+
 - メイン画面（CaptureView.swift:27-155）
 - ゲーム画面（GameView.swift, GameBoardView.swift）
 - IoU・安定時間バー、プログレス表示（CaptureView.swift:83-98）
 
 ✅ **重要なバグ修正**
+
 - setPieceProvider デッドロック解決（非同期処理導入）
-- UIフリーズ問題解決（DispatchQueue.global使用）
-- ProgressView範囲外値エラー修正
+- UI フリーズ問題解決（DispatchQueue.global 使用）
+- ProgressView 範囲外値エラー修正
 
 🚧 **実装予定**
+
 - 形状多様性ボーナス/重複ペナルティ
-- シェイプクールダウン（I型スパム防止）
-- SpriteKit統合による高度なアニメーション
+- シェイプクールダウン（I 型スパム防止）
+- SpriteKit 統合による高度なアニメーション
+
+```
+
+```
