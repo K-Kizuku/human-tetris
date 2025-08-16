@@ -25,55 +25,61 @@ struct CaptureView: View, GamePieceProvider {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            if let previewLayer = cameraManager.previewLayer {
-                CameraPreview(previewLayer: previewLayer)
-                    .onAppear {
-                        setupCamera()
-                    }
-                    .onDisappear {
-                        cameraManager.stopSession()
-                    }
-            } else {
-                // カメラが利用できない場合の代替表示
-                Rectangle()
-                    .fill(Color.gray.opacity(0.3))
-                    .overlay(
-                        VStack {
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 50))
-                                .foregroundColor(.white.opacity(0.7))
-                            Text("カメラ未対応")
-                                .font(.title2)
-                                .foregroundColor(.white)
-                            Text("シミュレータまたはカメラが利用できません")
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.8))
-                                .multilineTextAlignment(.center)
-                        }
-                    )
-                    .onAppear {
-                        setupCamera()
-                    }
-            }
-            
-            VStack {
-                Spacer()
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
                 
-                ZStack {
-                    Grid4x3Overlay(roiFrame: roiFrame)
-                    
-                    OccupancyHeatmap(
-                        grid: quantizationProcessor.currentGrid,
-                        roiFrame: roiFrame
-                    )
+                if let previewLayer = cameraManager.previewLayer {
+                    CameraPreview(previewLayer: previewLayer)
+                        .onAppear {
+                            setupCamera()
+                            updateROIFrame(for: geometry.size)
+                        }
+                        .onDisappear {
+                            cameraManager.stopSession()
+                        }
+                        .onChange(of: geometry.size) { _, newSize in
+                            updateROIFrame(for: newSize)
+                        }
+                } else {
+                    // カメラが利用できない場合の代替表示
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .overlay(
+                            VStack {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 50))
+                                    .foregroundColor(.white.opacity(0.7))
+                                Text("カメラ未対応")
+                                    .font(.title2)
+                                    .foregroundColor(.white)
+                                Text("シミュレータまたはカメラが利用できません")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .multilineTextAlignment(.center)
+                            }
+                        )
+                        .onAppear {
+                            setupCamera()
+                            updateROIFrame(for: geometry.size)
+                        }
                 }
                 
-                Spacer()
-                
-                VStack(spacing: 16) {
+                VStack {
+                    Spacer()
+                    
+                    ZStack {
+                        Grid4x3Overlay(roiFrame: roiFrame)
+                        
+                        OccupancyHeatmap(
+                            grid: quantizationProcessor.currentGrid,
+                            roiFrame: roiFrame
+                        )
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(spacing: 16) {
                     HStack {
                         VStack(alignment: .leading) {
                             Text("IoU: \(String(format: "%.2f", currentIoU))")
@@ -135,6 +141,7 @@ struct CaptureView: View, GamePieceProvider {
                 .padding(.bottom, 50)
             }
         }
+        }
         .onAppear {
             setupProcessors()
         }
@@ -169,37 +176,46 @@ struct CaptureView: View, GamePieceProvider {
     
     private func updateROIFrame() {
         guard let previewLayer = cameraManager.previewLayer else { return }
+        updateROIFrame(for: previewLayer.bounds.size)
+    }
+    
+    private func updateROIFrame(for bounds: CGSize) {
+        print("CaptureView: updateROIFrame called with bounds \(bounds)")
         
-        let bounds = previewLayer.bounds
-        
-        // 4x3アスペクト比を維持しつつデバイスサイズに適応
+        // 4x3アスペクト比を維持しつつ画面全体を最大限活用
         let targetAspectRatio: CGFloat = 3.0 / 4.0 // width/height = 3/4
-        let maxWidthRatio: CGFloat = 0.7
-        let maxHeightRatio: CGFloat = 0.6
         
-        let maxWidth = bounds.width * maxWidthRatio
-        let maxHeight = bounds.height * maxHeightRatio
+        // セーフエリアとUIコントロール用のマージンを考慮
+        let topMargin: CGFloat = 100 // ステータスバー + ナビゲーション領域
+        let bottomMargin: CGFloat = 200 // コントロールボタン領域
+        let sideMargin: CGFloat = 20 // 左右のマージン
+        
+        let availableWidth = bounds.width - (sideMargin * 2)
+        let availableHeight = bounds.height - topMargin - bottomMargin
         
         var frameWidth: CGFloat
         var frameHeight: CGFloat
         
-        // アスペクト比を保持しながら最大サイズ内に収める
-        if maxWidth / maxHeight > targetAspectRatio {
-            // 高さが制限要因
-            frameHeight = maxHeight
+        // アスペクト比を保持しながら利用可能領域を最大限活用
+        if availableWidth / availableHeight > targetAspectRatio {
+            // 高さが制限要因 - 高さを最大化
+            frameHeight = availableHeight
             frameWidth = frameHeight * targetAspectRatio
         } else {
-            // 幅が制限要因
-            frameWidth = maxWidth
+            // 幅が制限要因 - 幅を最大化
+            frameWidth = availableWidth
             frameHeight = frameWidth / targetAspectRatio
         }
         
+        // 画面中央に配置
         roiFrame = CGRect(
             x: (bounds.width - frameWidth) / 2,
-            y: (bounds.height - frameHeight) / 2,
+            y: topMargin + (availableHeight - frameHeight) / 2,
             width: frameWidth,
             height: frameHeight
         )
+        
+        print("CaptureView: ROI frame set to \(roiFrame)")
     }
     
     private func confirmPiece() {

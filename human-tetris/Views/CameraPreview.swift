@@ -27,7 +27,6 @@ struct CameraPreview: UIViewRepresentable {
 
 struct Grid4x3Overlay: View {
     let roiFrame: CGRect
-    @State private var animationPhase: Double = 0
     
     var body: some View {
         ZStack {
@@ -35,12 +34,6 @@ struct Grid4x3Overlay: View {
                 .stroke(Color.blue.opacity(0.7), lineWidth: 2)
                 .frame(width: roiFrame.width, height: roiFrame.height)
                 .position(x: roiFrame.midX, y: roiFrame.midY)
-                .scaleEffect(1.0 + sin(animationPhase) * 0.05)
-                .onAppear {
-                    withAnimation(.easeInOut(duration: 2).repeatForever()) {
-                        animationPhase = .pi * 2
-                    }
-                }
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 1) {
                 ForEach(0..<12, id: \.self) { index in
