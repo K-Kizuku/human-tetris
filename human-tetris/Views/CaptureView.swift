@@ -5,8 +5,8 @@
 //  Created by Kotani Kizuku on 2025/08/16.
 //
 
-import SwiftUI
 import AVFoundation
+import SwiftUI
 import Vision
 
 struct CaptureView: View, GamePieceProvider {
@@ -15,20 +15,20 @@ struct CaptureView: View, GamePieceProvider {
     @StateObject private var quantizationProcessor = QuantizationProcessor()
     @StateObject private var shapeExtractor = ShapeExtractor()
     @StateObject private var gameCore = GameCore()
-    
+
     @State private var roiFrame = CGRect(x: 100, y: 200, width: 200, height: 150)
     @State private var currentIoU: Float = 0.0
     @State private var showingGame = false
     @State private var detectedPiece: Polyomino?
     @State private var pendingPieceRequests: [((Polyomino?) -> Void)] = []
-    
+
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 Color.black.ignoresSafeArea()
-                
+
                 if let previewLayer = cameraManager.previewLayer {
                     CameraPreview(previewLayer: previewLayer)
                         .onAppear {
@@ -64,83 +64,94 @@ struct CaptureView: View, GamePieceProvider {
                             updateROIFrame(for: geometry.size)
                         }
                 }
-                
+
                 VStack {
                     Spacer()
-                    
+
                     ZStack {
-                        Grid4x3Overlay(roiFrame: roiFrame)
-                        
+                        Grid4x3Overlay(
+                            cameraWidth: roiFrame.width,
+                            cameraHeight: roiFrame.height
+                        )
+
                         OccupancyHeatmap(
                             grid: quantizationProcessor.currentGrid,
-                            roiFrame: roiFrame
+                            cameraWidth: roiFrame.width,
+                            cameraHeight: roiFrame.height
                         )
                     }
-                    
+
                     Spacer()
-                    
+
                     VStack(spacing: 16) {
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text("IoU: \(String(format: "%.2f", currentIoU))")
-                                .foregroundColor(.white)
-                                .font(.caption)
-                            
-                            ProgressView(value: max(0.0, min(1.0, Double(currentIoU))), total: 1.0)
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("IoU: \(String(format: "%.2f", currentIoU))")
+                                    .foregroundColor(.white)
+                                    .font(.caption)
+
+                                ProgressView(
+                                    value: max(0.0, min(1.0, Double(currentIoU))), total: 1.0
+                                )
                                 .tint(.green)
                                 .frame(height: 4)
-                        }
-                        
-                        Spacer()
-                        
-                        VStack(alignment: .trailing) {
-                            Text("安定: \(String(format: "%.1f", quantizationProcessor.stableTime))s")
+                            }
+
+                            Spacer()
+
+                            VStack(alignment: .trailing) {
+                                Text(
+                                    "安定: \(String(format: "%.1f", quantizationProcessor.stableTime))s"
+                                )
                                 .foregroundColor(.white)
                                 .font(.caption)
-                            
-                            ProgressView(value: max(0.0, min(1.0, quantizationProcessor.stableTime)), total: 1.0)
+
+                                ProgressView(
+                                    value: max(0.0, min(1.0, quantizationProcessor.stableTime)),
+                                    total: 1.0
+                                )
                                 .tint(quantizationProcessor.isStable ? .green : .orange)
                                 .frame(height: 4)
+                            }
                         }
+                        .padding(.horizontal)
+
+                        if quantizationProcessor.isStable && currentIoU >= 0.6 {
+                            Button("ピース確定") {
+                                confirmPiece()
+                            }
+                            .buttonStyle(PrimaryButtonStyle())
+                            .animation(.bouncy, value: quantizationProcessor.isStable)
+                        }
+
+                        #if targetEnvironment(simulator)
+                            // シミュレータ用のテストボタン
+                            if cameraManager.previewLayer == nil {
+                                Button("テストピース生成") {
+                                    generateTestPiece()
+                                }
+                                .buttonStyle(PrimaryButtonStyle())
+                            }
+                        #endif
+
+                        HStack {
+                            Button("戻る") {
+                                dismiss()
+                            }
+                            .buttonStyle(SecondaryButtonStyle())
+
+                            Spacer()
+
+                            Button(visionProcessor.detectionEnabled ? "一時停止" : "再開") {
+                                visionProcessor.toggleDetection()
+                            }
+                            .buttonStyle(SecondaryButtonStyle())
+                        }
+                        .padding(.horizontal)
                     }
-                    .padding(.horizontal)
-                    
-                    if quantizationProcessor.isStable && currentIoU >= 0.6 {
-                        Button("ピース確定") {
-                            confirmPiece()
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .animation(.bouncy, value: quantizationProcessor.isStable)
-                    }
-                    
-                    #if targetEnvironment(simulator)
-                    // シミュレータ用のテストボタン
-                    if cameraManager.previewLayer == nil {
-                        Button("テストピース生成") {
-                            generateTestPiece()
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                    }
-                    #endif
-                    
-                    HStack {
-                        Button("戻る") {
-                            dismiss()
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
-                        
-                        Spacer()
-                        
-                        Button(visionProcessor.detectionEnabled ? "一時停止" : "再開") {
-                            visionProcessor.toggleDetection()
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
-                    }
-                    .padding(.horizontal)
+                    .padding(.bottom, 50)
                 }
-                .padding(.bottom, 50)
             }
-        }
         }
         .onAppear {
             setupProcessors()
@@ -155,78 +166,200 @@ struct CaptureView: View, GamePieceProvider {
                 print("CaptureView: GameView showing - stopping camera and vision processing")
                 stopProcessing()
             } else {
-                print("CaptureView: GameView hidden - resuming camera and vision processing")  
+                print("CaptureView: GameView hidden - resuming camera and vision processing")
                 resumeProcessing()
             }
         }
     }
-    
+
     private func setupCamera() {
         cameraManager.delegate = self
         cameraManager.requestPermission()
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             updateROIFrame()
         }
     }
-    
+
     private func setupProcessors() {
         visionProcessor.delegate = self
     }
-    
+
     private func updateROIFrame() {
         guard let previewLayer = cameraManager.previewLayer else { return }
         updateROIFrame(for: previewLayer.bounds.size)
     }
-    
+
     private func updateROIFrame(for bounds: CGSize) {
         print("CaptureView: updateROIFrame called with bounds \(bounds)")
-        
-        // 4x3アスペクト比を維持しつつ画面全体を最大限活用
-        let targetAspectRatio: CGFloat = 3.0 / 4.0 // width/height = 3/4
-        
-        // セーフエリアとUIコントロール用のマージンを考慮
-        let topMargin: CGFloat = 100 // ステータスバー + ナビゲーション領域
-        let bottomMargin: CGFloat = 200 // コントロールボタン領域
-        let sideMargin: CGFloat = 20 // 左右のマージン
-        
-        let availableWidth = bounds.width - (sideMargin * 2)
-        let availableHeight = bounds.height - topMargin - bottomMargin
-        
+
+        // カメラプレビューレイヤーの実際のサイズを取得
+        guard let previewLayer = cameraManager.previewLayer else {
+            print("CaptureView: Preview layer not available, using screen bounds")
+            updateROIFrameForScreenBounds(bounds)
+            return
+        }
+
+        // プレビューレイヤーのフレームを更新
+        DispatchQueue.main.async {
+            previewLayer.frame = CGRect(origin: .zero, size: bounds)
+        }
+
+        // カメラの実際の映像サイズとプレビューレイヤーのサイズを考慮
+        let videoGravity = previewLayer.videoGravity
+        let previewLayerBounds = CGRect(origin: .zero, size: bounds)
+
+        // カメラの解像度を取得（VGA 640x480を使用）
+        let cameraResolution = CGSize(width: 640, height: 480)
+
+        // プレビューレイヤー内での実際の映像表示領域を計算
+        let videoRect = calculateVideoRect(
+            for: cameraResolution,
+            in: previewLayerBounds,
+            videoGravity: videoGravity
+        )
+
+        print("CaptureView: Video rect in preview layer: \(videoRect)")
+
+        // 4x3アスペクト比を維持しつつ映像領域内に配置
+        let targetAspectRatio: CGFloat = 3.0 / 4.0  // width/height = 3/4
+
+        // UIコントロール用のマージンを考慮
+        let topMargin: CGFloat = 100
+        let bottomMargin: CGFloat = 200
+        let sideMargin: CGFloat = 20
+
+        // 映像表示領域内での利用可能領域を計算
+        let availableVideoWidth = max(0, videoRect.width - (sideMargin * 2))
+        let availableVideoHeight = max(0, videoRect.height - topMargin - bottomMargin)
+
         var frameWidth: CGFloat
         var frameHeight: CGFloat
-        
-        // アスペクト比を保持しながら利用可能領域を最大限活用
+
+        // アスペクト比を保持しながら映像領域内で最大化
+        if availableVideoWidth / availableVideoHeight > targetAspectRatio {
+            frameHeight = availableVideoHeight
+            frameWidth = frameHeight * targetAspectRatio
+        } else {
+            frameWidth = availableVideoWidth
+            frameHeight = frameWidth / targetAspectRatio
+        }
+
+        // 映像領域の中央に配置
+        let centerX = videoRect.midX
+        let centerY = videoRect.minY + topMargin + (availableVideoHeight / 2)
+
+        roiFrame = CGRect(
+            x: centerX - (frameWidth / 2),
+            y: centerY - (frameHeight / 2),
+            width: frameWidth,
+            height: frameHeight
+        )
+
+        // VisionProcessorにROI情報を更新
+        visionProcessor.updateROI(frame: roiFrame, previewBounds: previewLayerBounds)
+
+        print("CaptureView: ROI frame set to \(roiFrame) within video rect \(videoRect)")
+    }
+
+    private func updateROIFrameForScreenBounds(_ bounds: CGSize) {
+        // フォールバック：プレビューレイヤーが利用できない場合
+        let targetAspectRatio: CGFloat = 3.0 / 4.0
+        let topMargin: CGFloat = 100
+        let bottomMargin: CGFloat = 200
+        let sideMargin: CGFloat = 20
+
+        let availableWidth = bounds.width - (sideMargin * 2)
+        let availableHeight = bounds.height - topMargin - bottomMargin
+
+        var frameWidth: CGFloat
+        var frameHeight: CGFloat
+
         if availableWidth / availableHeight > targetAspectRatio {
-            // 高さが制限要因 - 高さを最大化
             frameHeight = availableHeight
             frameWidth = frameHeight * targetAspectRatio
         } else {
-            // 幅が制限要因 - 幅を最大化
             frameWidth = availableWidth
             frameHeight = frameWidth / targetAspectRatio
         }
-        
-        // 画面中央に配置
+
         roiFrame = CGRect(
             x: (bounds.width - frameWidth) / 2,
             y: topMargin + (availableHeight - frameHeight) / 2,
             width: frameWidth,
             height: frameHeight
         )
-        
-        print("CaptureView: ROI frame set to \(roiFrame)")
+
+        // VisionProcessorにROI情報を更新（フォールバック用）
+        visionProcessor.updateROI(
+            frame: roiFrame, previewBounds: CGRect(origin: .zero, size: bounds))
     }
-    
+
+    private func calculateVideoRect(
+        for videoSize: CGSize, in layerBounds: CGRect, videoGravity: AVLayerVideoGravity
+    ) -> CGRect {
+        let videoAspectRatio = videoSize.width / videoSize.height
+        let layerAspectRatio = layerBounds.width / layerBounds.height
+
+        switch videoGravity {
+        case .resizeAspectFill:
+            if videoAspectRatio > layerAspectRatio {
+                // 映像の方が横長 - 高さを合わせて幅をクロップ
+                let scaledWidth = layerBounds.height * videoAspectRatio
+                return CGRect(
+                    x: (layerBounds.width - scaledWidth) / 2,
+                    y: 0,
+                    width: scaledWidth,
+                    height: layerBounds.height
+                )
+            } else {
+                // 映像の方が縦長 - 幅を合わせて高さをクロップ
+                let scaledHeight = layerBounds.width / videoAspectRatio
+                return CGRect(
+                    x: 0,
+                    y: (layerBounds.height - scaledHeight) / 2,
+                    width: layerBounds.width,
+                    height: scaledHeight
+                )
+            }
+        case .resizeAspect:
+            if videoAspectRatio > layerAspectRatio {
+                // 映像の方が横長 - 幅を合わせて高さを調整
+                let scaledHeight = layerBounds.width / videoAspectRatio
+                return CGRect(
+                    x: 0,
+                    y: (layerBounds.height - scaledHeight) / 2,
+                    width: layerBounds.width,
+                    height: scaledHeight
+                )
+            } else {
+                // 映像の方が縦長 - 高さを合わせて幅を調整
+                let scaledWidth = layerBounds.height * videoAspectRatio
+                return CGRect(
+                    x: (layerBounds.width - scaledWidth) / 2,
+                    y: 0,
+                    width: scaledWidth,
+                    height: layerBounds.height
+                )
+            }
+        case .resize:
+            return layerBounds
+        default:
+            return layerBounds
+        }
+    }
+
     private func confirmPiece() {
         print("CaptureView: confirmPiece() called")
-        
+
         // 現在のグリッドから直接抽出を試行
         let currentGrid = quantizationProcessor.currentGrid
         print("CaptureView: Current grid on cells: \(currentGrid.onCells.count)")
-        
+
         if let extractedPiece = shapeExtractor.extractBestShape(from: currentGrid) {
-            print("CaptureView: Successfully extracted piece with \(extractedPiece.cells.count) cells")
+            print(
+                "CaptureView: Successfully extracted piece with \(extractedPiece.cells.count) cells"
+            )
             detectedPiece = extractedPiece
             showingGame = true
             print("CaptureView: showingGame = \(showingGame)")
@@ -234,63 +367,64 @@ struct CaptureView: View, GamePieceProvider {
             print("CaptureView: No valid piece could be extracted from current grid")
             // フォールバック: テストピースを生成
             #if targetEnvironment(simulator)
-            generateTestPiece()
+                generateTestPiece()
             #else
-            print("CaptureView: Cannot extract piece, try adjusting pose")
+                print("CaptureView: Cannot extract piece, try adjusting pose")
             #endif
         }
     }
-    
+
     #if targetEnvironment(simulator)
-    private func generateTestPiece() {
-        print("CaptureView: generateTestPiece() called")
-        // シミュレータ用のテストピース（L字型）
-        let testPiece = Polyomino(cells: [
-            (x: 0, y: 0),
-            (x: 0, y: 1),
-            (x: 0, y: 2),
-            (x: 1, y: 2)
-        ])
-        
-        print("CaptureView: Setting test piece and showing game")
-        detectedPiece = testPiece
-        showingGame = true
-        print("CaptureView: showingGame = \(showingGame)")
-    }
+        private func generateTestPiece() {
+            print("CaptureView: generateTestPiece() called")
+            // シミュレータ用のテストピース（L字型）
+            let testPiece = Polyomino(cells: [
+                (x: 0, y: 0),
+                (x: 0, y: 1),
+                (x: 0, y: 2),
+                (x: 1, y: 2),
+            ])
+
+            print("CaptureView: Setting test piece and showing game")
+            detectedPiece = testPiece
+            showingGame = true
+            print("CaptureView: showingGame = \(showingGame)")
+        }
     #endif
-    
+
     // MARK: - GamePieceProvider
-    
+
     func requestNextPiece(completion: @escaping (Polyomino?) -> Void) {
         print("CaptureView: requestNextPiece called")
-        
+
         // 非同期で処理してデッドロックを防ぐ
         DispatchQueue.global(qos: .userInitiated).async {
             // 既に検出済みのピースがある場合は即座に返す
             if self.quantizationProcessor.isStable && self.currentIoU >= 0.6,
-               let candidate = self.shapeExtractor.bestCandidate {
+                let candidate = self.shapeExtractor.bestCandidate
+            {
                 DispatchQueue.main.async {
                     completion(candidate.toPolyomino())
                 }
                 return
             }
-            
+
             // 待機中のリクエストに追加
             DispatchQueue.main.async {
                 self.pendingPieceRequests.append(completion)
             }
-            
+
             // タイムアウト処理
             DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
                 self.timeoutPieceRequest()
             }
         }
     }
-    
+
     func isAvailable() -> Bool {
         return visionProcessor.detectionEnabled && cameraManager.isSessionRunning
     }
-    
+
     private func timeoutPieceRequest() {
         if !pendingPieceRequests.isEmpty {
             // タイムアウトした場合はフォールバックピースを返す
@@ -301,18 +435,18 @@ struct CaptureView: View, GamePieceProvider {
             pendingPieceRequests.removeAll()
         }
     }
-    
+
     private func generateFallbackPiece() -> Polyomino {
         let shapes: [[(x: Int, y: Int)]] = [
-            [(0, 0), (0, 1), (0, 2), (0, 3)], // I型
-            [(0, 0), (0, 1), (0, 2), (1, 2)], // L型
-            [(0, 1), (1, 0), (1, 1), (1, 2)], // T型
-            [(0, 0), (0, 1), (1, 1), (1, 2)], // Z型
+            [(0, 0), (0, 1), (0, 2), (0, 3)],  // I型
+            [(0, 0), (0, 1), (0, 2), (1, 2)],  // L型
+            [(0, 1), (1, 0), (1, 1), (1, 2)],  // T型
+            [(0, 0), (0, 1), (1, 1), (1, 2)],  // Z型
         ]
         let randomShape = shapes.randomElement() ?? shapes[0]
         return Polyomino(cells: randomShape)
     }
-    
+
     private func stopProcessing() {
         print("CaptureView: Stopping camera and vision processing")
         // Vision処理のみ停止、UIの状態は変更しない
@@ -321,7 +455,7 @@ struct CaptureView: View, GamePieceProvider {
         }
         cameraManager.stopSession()
     }
-    
+
     private func resumeProcessing() {
         print("CaptureView: Resuming camera and vision processing")
         cameraManager.startSession()
@@ -330,39 +464,41 @@ struct CaptureView: View, GamePieceProvider {
             visionProcessor.toggleDetection()
         }
     }
-    
+
     private func fulfillPendingRequests(with piece: Polyomino) {
         for request in pendingPieceRequests {
             request(piece)
         }
         pendingPieceRequests.removeAll()
     }
-    
+
     // MARK: - New GamePieceProvider Methods (Extended Protocol)
-    
+
     func beginCountdown() {
         print("CaptureView: beginCountdown() called")
         // 将来的にカウントダウンマネージャーを統合予定
     }
-    
+
     func cancelCountdown() {
         print("CaptureView: cancelCountdown() called")
         // 将来的にカウントダウンマネージャーを統合予定
     }
-    
+
     func captureAtZero() -> Polyomino? {
         print("CaptureView: captureAtZero() called")
         // 0秒時点でのスナップショット処理
         let currentGrid = quantizationProcessor.currentGrid
         if let extractedPiece = shapeExtractor.extractBestShape(from: currentGrid) {
-            print("CaptureView: Successfully extracted piece at zero: \(extractedPiece.cells.count) cells")
+            print(
+                "CaptureView: Successfully extracted piece at zero: \(extractedPiece.cells.count) cells"
+            )
             return extractedPiece
         } else {
             print("CaptureView: No valid piece extracted at zero")
             return nil
         }
     }
-    
+
     func fallbackTetromino() -> Polyomino {
         print("CaptureView: fallbackTetromino() called")
         // 標準テトロミノからランダム選択
@@ -376,7 +512,7 @@ extension CaptureView: CameraManagerDelegate {
     func cameraManager(_ manager: CameraManager, didOutput pixelBuffer: CVPixelBuffer) {
         visionProcessor.processFrame(pixelBuffer)
     }
-    
+
     func cameraManager(_ manager: CameraManager, didEncounterError error: Error) {
         print("Camera error: \(error)")
     }
@@ -385,20 +521,24 @@ extension CaptureView: CameraManagerDelegate {
 // MARK: - VisionProcessorDelegate
 
 extension CaptureView: VisionProcessorDelegate {
-    func visionProcessor(_ processor: VisionProcessor, didDetectPersonMask mask: CVPixelBuffer, in roi: CGRect) {
+    func visionProcessor(
+        _ processor: VisionProcessor, didDetectPersonMask mask: CVPixelBuffer, in roi: CGRect
+    ) {
         let grid = quantizationProcessor.quantize(
             mask: mask,
             roi: roi,
             threshold: quantizationProcessor.getAdaptiveThreshold()
         )
-        
+
         if shapeExtractor.extractBestShape(from: grid) != nil {
             DispatchQueue.main.async {
                 if let candidate = self.shapeExtractor.bestCandidate {
                     self.currentIoU = candidate.iou
-                    
+
                     // 新しいピースが検出され、待機中のリクエストがある場合は満たす
-                    if self.quantizationProcessor.isStable && self.currentIoU >= 0.6 && !self.pendingPieceRequests.isEmpty {
+                    if self.quantizationProcessor.isStable && self.currentIoU >= 0.6
+                        && !self.pendingPieceRequests.isEmpty
+                    {
                         let detectedPiece = candidate.toPolyomino()
                         self.fulfillPendingRequests(with: detectedPiece)
                     }
@@ -406,11 +546,13 @@ extension CaptureView: VisionProcessorDelegate {
             }
         }
     }
-    
-    func visionProcessor(_ processor: VisionProcessor, didDetectPose pose: VNHumanBodyPoseObservation) {
+
+    func visionProcessor(
+        _ processor: VisionProcessor, didDetectPose pose: VNHumanBodyPoseObservation
+    ) {
         // ポーズ情報を使用した追加の検証やヒント生成に使用可能
     }
-    
+
     func visionProcessor(_ processor: VisionProcessor, didEncounterError error: Error) {
         print("Vision processing error: \(error)")
     }

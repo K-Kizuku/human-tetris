@@ -30,6 +30,7 @@ class QuantizationProcessor: ObservableObject {
         defer { CVPixelBufferUnlockBaseAddress(mask, .readOnly) }
         
         guard let baseAddress = CVPixelBufferGetBaseAddress(mask) else {
+            print("QuantizationProcessor: Failed to get base address")
             return Grid4x3()
         }
         
@@ -37,13 +38,22 @@ class QuantizationProcessor: ObservableObject {
         let height = CVPixelBufferGetHeight(mask)
         let bytesPerRow = CVPixelBufferGetBytesPerRow(mask)
         
-        let roiX = Int(roi.origin.x)
-        let roiY = Int(roi.origin.y)
-        let roiWidth = Int(roi.width)
-        let roiHeight = Int(roi.height)
+        // ROIの境界チェックと調整
+        let roiX = max(0, min(Int(roi.origin.x), width - 1))
+        let roiY = max(0, min(Int(roi.origin.y), height - 1))
+        let roiWidth = max(1, min(Int(roi.width), width - roiX))
+        let roiHeight = max(1, min(Int(roi.height), height - roiY))
         
+        print("QuantizationProcessor: Processing ROI (\(roiX), \(roiY), \(roiWidth), \(roiHeight)) in image (\(width), \(height))")
+        
+        // 4x3グリッドのセルサイズを計算
         let cellWidth = roiWidth / 3
         let cellHeight = roiHeight / 4
+        
+        // セルサイズが小さすぎる場合の警告
+        if cellWidth < 10 || cellHeight < 10 {
+            print("QuantizationProcessor: Warning - Cell size too small: \(cellWidth)x\(cellHeight)")
+        }
         
         var newOccupancyRates: [[Float]] = Array(repeating: Array(repeating: 0.0, count: 3), count: 4)
         var grid = Grid4x3()
@@ -58,6 +68,7 @@ class QuantizationProcessor: ObservableObject {
                 var totalPixels = 0
                 var foregroundPixels = 0
                 
+                // セル内の各ピクセルを処理
                 for y in cellStartY..<cellEndY {
                     for x in cellStartX..<cellEndX {
                         if x >= 0 && x < width && y >= 0 && y < height {
@@ -75,6 +86,11 @@ class QuantizationProcessor: ObservableObject {
                 let occupancyRate = totalPixels > 0 ? Float(foregroundPixels) / Float(totalPixels) : 0.0
                 newOccupancyRates[row][col] = occupancyRate
                 grid[row, col] = occupancyRate > threshold
+                
+                // デバッグ情報（最初の数フレームのみ）
+                if row == 0 && col == 0 {
+                    print("QuantizationProcessor: Cell (0,0) occupancy: \(occupancyRate) (\(foregroundPixels)/\(totalPixels))")
+                }
             }
         }
         

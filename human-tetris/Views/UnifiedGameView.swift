@@ -5,8 +5,8 @@
 //  Created by Kotani Kizuku on 2025/08/16.
 //
 
-import SwiftUI
 import AVFoundation
+import SwiftUI
 import Vision
 
 struct UnifiedGameView: View, GamePieceProvider {
@@ -17,7 +17,7 @@ struct UnifiedGameView: View, GamePieceProvider {
     @StateObject private var gameCore = GameCore()
     @StateObject private var countdownManager = CountdownManager()
     @StateObject private var shapeHistoryManager = ShapeHistoryManager()
-    
+
     @State private var roiFrame = CGRect(x: 100, y: 200, width: 200, height: 150)
     @State private var currentIoU: Float = 0.0
     @State private var captureState = CaptureState()
@@ -25,25 +25,29 @@ struct UnifiedGameView: View, GamePieceProvider {
     @State private var isGameActive = false
     @State private var showSuccessHighlight = false
     @State private var showFailureHighlight = false
-    
+
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 Color.black.ignoresSafeArea()
-                
+
                 VStack(spacing: 8) {
-                    // Top section - Camera + Countdown
-                    cameraSection(geometry: geometry)
-                        .frame(height: geometry.size.height * 0.25)
-                    
+                    // Top section - Camera + Countdown (中央配置)
+                    HStack {
+                        Spacer()
+                        cameraSection(geometry: geometry)
+                            .frame(height: geometry.size.height * 0.25)
+                        Spacer()
+                    }
+
                     // Bottom section - Game Board
                     gameBoardSection(geometry: geometry)
-                    .frame(height: geometry.size.height * 0.75)
+                        .frame(height: geometry.size.height * 0.75)
                 }
                 .padding(.horizontal, 8)
-                
+
                 // Flash effect overlay
                 if showFlashEffect {
                     Rectangle()
@@ -51,20 +55,24 @@ struct UnifiedGameView: View, GamePieceProvider {
                         .ignoresSafeArea()
                         .animation(.easeInOut(duration: 0.2), value: showFlashEffect)
                 }
-                
+
                 // Success/Failure highlights
                 if showSuccessHighlight {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.green, lineWidth: 4)
-                        .frame(width: geometry.size.width * 0.8, height: geometry.size.height * 0.22)
+                        .frame(
+                            width: geometry.size.width * 0.8, height: geometry.size.height * 0.22
+                        )
                         .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.125)
                         .animation(.bouncy, value: showSuccessHighlight)
                 }
-                
+
                 if showFailureHighlight {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.red, lineWidth: 4)
-                        .frame(width: geometry.size.width * 0.8, height: geometry.size.height * 0.22)
+                        .frame(
+                            width: geometry.size.width * 0.8, height: geometry.size.height * 0.22
+                        )
                         .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.125)
                         .animation(.bouncy, value: showFailureHighlight)
                 }
@@ -80,17 +88,32 @@ struct UnifiedGameView: View, GamePieceProvider {
             triggerFlashEffect()
         }
     }
-    
+
     // MARK: - Camera Section
-    
+
+    private func calculateCameraWidth(for geometry: GeometryProxy) -> CGFloat {
+        let cameraHeight = geometry.size.height * 0.25
+        let deviceAspectRatio = geometry.size.width / geometry.size.height
+
+        // デバイスのアスペクト比を維持してカメラ幅を計算
+        let cameraWidth = cameraHeight * deviceAspectRatio
+
+        // 最大幅を画面幅の90%に制限
+        let maxWidth = geometry.size.width * 0.9
+
+        return min(cameraWidth, maxWidth)
+    }
+
     @ViewBuilder
     private func cameraSection(geometry: GeometryProxy) -> some View {
         VStack(spacing: 4) {
             // Camera and overlays
             ZStack {
-                // Camera preview
+                // Camera preview with device aspect ratio
                 if let previewLayer = cameraManager.previewLayer {
                     CameraPreview(previewLayer: previewLayer)
+                        .aspectRatio(geometry.size.width / geometry.size.height, contentMode: .fill)
+                        .clipped()
                         .onAppear {
                             setupCamera()
                             updateROIFrame(for: geometry.size)
@@ -102,6 +125,8 @@ struct UnifiedGameView: View, GamePieceProvider {
                     // Camera unavailable fallback
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
+                        .aspectRatio(geometry.size.width / geometry.size.height, contentMode: .fill)
+                        .clipped()
                         .overlay(
                             VStack {
                                 Image(systemName: "camera.fill")
@@ -117,33 +142,38 @@ struct UnifiedGameView: View, GamePieceProvider {
                             updateROIFrame(for: geometry.size)
                         }
                 }
-                
-                // 4x3 Grid overlay
-                Grid4x3Overlay(roiFrame: roiFrame)
-                
-                // Occupancy heatmap
+
+                // 4x3 Grid overlay - カメラ全体のサイズに合わせる
+                Grid4x3Overlay(
+                    cameraWidth: calculateCameraWidth(for: geometry),
+                    cameraHeight: geometry.size.height * 0.25
+                )
+
+                // Occupancy heatmap - カメラ全体のサイズに合わせる
                 OccupancyHeatmap(
                     grid: captureState.grid,
-                    roiFrame: roiFrame
+                    cameraWidth: calculateCameraWidth(for: geometry),
+                    cameraHeight: geometry.size.height * 0.25
                 )
-                
+
                 // Semi-transparent cell overlay for current piece preview
                 if let currentPiece = gameCore.gameState.currentPiece {
                     cellOverlay(for: currentPiece, geometry: geometry)
                 }
-                
+
                 // Countdown display
                 if countdownManager.isCountingDown {
                     countdownOverlay
                 }
             }
-            .frame(height: geometry.size.height * 0.18) // カメラ部分を18%に調整
+            .frame(height: geometry.size.height * 0.25)  // カメラ部分の高さを維持
+            .frame(width: calculateCameraWidth(for: geometry))  // デバイスアスペクト比に基づく幅
             .cornerRadius(8)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(Color.white.opacity(0.3), lineWidth: 1)
             )
-            
+
             // Compact control section
             HStack(spacing: 8) {
                 // IoU indicator
@@ -158,9 +188,9 @@ struct UnifiedGameView: View, GamePieceProvider {
                         .foregroundColor(.white)
                         .font(.caption2)
                 }
-                
+
                 Spacer()
-                
+
                 // Game start/next piece button
                 if !isGameActive {
                     Button("開始") {
@@ -173,37 +203,42 @@ struct UnifiedGameView: View, GamePieceProvider {
                     }
                     .buttonStyle(CompactButtonStyle())
                 }
-                
+
                 Spacer()
-                
+
                 // Stability indicator
                 HStack(spacing: 4) {
                     Text("安定:")
                         .foregroundColor(.white)
                         .font(.caption2)
-                    ProgressView(value: max(0.0, min(1.0, Double(captureState.stableMs) / 1000.0)), total: 1.0)
-                        .tint(captureState.isStable ? .green : .orange)
-                        .frame(width: 40, height: 2)
+                    ProgressView(
+                        value: max(0.0, min(1.0, Double(captureState.stableMs) / 1000.0)),
+                        total: 1.0
+                    )
+                    .tint(captureState.isStable ? .green : .orange)
+                    .frame(width: 40, height: 2)
                 }
             }
             .padding(.horizontal, 8)
-            
+
             #if targetEnvironment(simulator)
-            if cameraManager.previewLayer == nil {
-                Button("テスト") {
-                    generateTestPiece()
+                if cameraManager.previewLayer == nil {
+                    Button("テスト") {
+                        generateTestPiece()
+                    }
+                    .buttonStyle(CompactButtonStyle())
                 }
-                .buttonStyle(CompactButtonStyle())
-            }
             #endif
         }
     }
-    
+
     @ViewBuilder
     private func cellOverlay(for piece: Polyomino, geometry: GeometryProxy) -> some View {
-        let cellWidth = roiFrame.width / 3
-        let cellHeight = roiFrame.height / 4
-        
+        let cameraWidth = calculateCameraWidth(for: geometry)
+        let cameraHeight = geometry.size.height * 0.25
+        let cellWidth = cameraWidth / 3
+        let cellHeight = cameraHeight / 4
+
         ZStack {
             ForEach(0..<piece.cells.count, id: \.self) { index in
                 let cell = piece.cells[index]
@@ -211,20 +246,20 @@ struct UnifiedGameView: View, GamePieceProvider {
                     .fill(Color.blue.opacity(0.3))
                     .frame(width: cellWidth, height: cellHeight)
                     .position(
-                        x: roiFrame.minX + (CGFloat(cell.x) + 0.5) * cellWidth,
-                        y: roiFrame.minY + (CGFloat(cell.y) + 0.5) * cellHeight
+                        x: (CGFloat(cell.x) + 0.5) * cellWidth,
+                        y: (CGFloat(cell.y) + 0.5) * cellHeight
                     )
             }
         }
     }
-    
+
     @ViewBuilder
     private var countdownOverlay: some View {
         ZStack {
             Circle()
                 .fill(Color.black.opacity(0.7))
                 .frame(width: 80, height: 80)
-            
+
             VStack {
                 if countdownManager.currentCount > 0 {
                     Text("\(countdownManager.currentCount)")
@@ -234,7 +269,7 @@ struct UnifiedGameView: View, GamePieceProvider {
                     Text("📸")
                         .font(.system(size: 36))
                 }
-                
+
                 // Progress ring
                 Circle()
                     .trim(from: 0.0, to: CGFloat(countdownManager.progress))
@@ -244,10 +279,9 @@ struct UnifiedGameView: View, GamePieceProvider {
             }
         }
     }
-    
-    
+
     // MARK: - Game Board Section
-    
+
     @ViewBuilder
     private func gameBoardSection(geometry: GeometryProxy) -> some View {
         VStack(spacing: 8) {
@@ -261,9 +295,9 @@ struct UnifiedGameView: View, GamePieceProvider {
                         .foregroundColor(.white)
                         .font(.caption)
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .center, spacing: 2) {
                     Text("レベル: \(gameCore.gameState.level)")
                         .foregroundColor(.white)
@@ -272,15 +306,15 @@ struct UnifiedGameView: View, GamePieceProvider {
                         .foregroundColor(.white)
                         .font(.caption)
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 2) {
                     Button(isGameActive ? "一時停止" : "再開") {
                         toggleGamePause()
                     }
                     .buttonStyle(CompactButtonStyle())
-                    
+
                     Button("戻る") {
                         dismiss()
                     }
@@ -288,103 +322,124 @@ struct UnifiedGameView: View, GamePieceProvider {
                 }
             }
             .padding(.horizontal, 8)
-            
+
             // Game board - larger for vertical layout
-            GameBoardView(gameCore: gameCore, targetSize: CGSize(width: geometry.size.width * 0.85, height: geometry.size.height * 0.55))
-                .frame(maxHeight: geometry.size.height * 0.55)
-            
+            GameBoardView(
+                gameCore: gameCore,
+                targetSize: CGSize(
+                    width: geometry.size.width * 0.85, height: geometry.size.height * 0.55)
+            )
+            .frame(maxHeight: geometry.size.height * 0.55)
+
             // Game controls for vertical layout
-            HStack(spacing: 12) {
-                Button("←") {
-                    _ = gameCore.movePiece(dx: -1)
+            VStack(spacing: 8) {
+                // 上段：左、回転、右
+                HStack(spacing: 12) {
+                    Button("←") {
+                        _ = gameCore.movePiece(dx: -1)
+                    }
+                    .buttonStyle(ControlButtonStyle())
+
+                    Button("↻") {
+                        _ = gameCore.rotatePiece()
+                    }
+                    .buttonStyle(ControlButtonStyle())
+
+                    Button("→") {
+                        _ = gameCore.movePiece(dx: 1)
+                    }
+                    .buttonStyle(ControlButtonStyle())
                 }
-                .buttonStyle(ControlButtonStyle())
-                
-                Button("↻") {
-                    _ = gameCore.rotatePiece()
+
+                // 下段：ソフトドロップとハードドロップ
+                HStack(spacing: 12) {
+                    // ソフトドロップボタン（長押し対応）
+                    Button("↓") {
+                        // タップ時は1回だけ下に移動
+                        _ = gameCore.movePiece(dx: 0, dy: 1)
+                    }
+                    .buttonStyle(SoftDropButtonStyle())
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { _ in
+                                gameCore.startSoftDrop()
+                            }
+                            .onEnded { _ in
+                                gameCore.stopSoftDrop()
+                            }
+                    )
+
+                    Spacer()
+
+                    // ハードドロップボタン
+                    Button("⬇") {
+                        gameCore.hardDrop()
+                    }
+                    .buttonStyle(HardDropButtonStyle())
                 }
-                .buttonStyle(ControlButtonStyle())
-                
-                Button("→") {
-                    _ = gameCore.movePiece(dx: 1)
-                }
-                .buttonStyle(ControlButtonStyle())
             }
             .padding(.top, 8)
         }
     }
-    
-    
+
     // MARK: - Setup and Lifecycle
-    
+
     private func setupComponents() {
         print("UnifiedGameView: Setting up components")
-        
+
         // Setup camera
         cameraManager.delegate = self
         cameraManager.requestPermission()
-        
+
         // Setup vision processor
         visionProcessor.delegate = self
-        
+
         // Setup countdown manager
         countdownManager.delegate = self
-        
+
         // Setup game core
         gameCore.setPieceProvider(self)
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             updateROIFrame()
         }
     }
-    
+
     private func cleanupComponents() {
         print("UnifiedGameView: Cleaning up components")
         cameraManager.stopSession()
         countdownManager.stopCountdown()
     }
-    
+
     private func updateROIFrame() {
         guard let previewLayer = cameraManager.previewLayer else { return }
         updateROIFrame(for: previewLayer.bounds.size)
     }
-    
+
     private func updateROIFrame(for bounds: CGSize) {
-        // 垂直レイアウト: カメラセクションが上部25%を使用
+        // カメラセクションが上部25%を使用、デバイスのアスペクト比を維持
         let cameraHeight = bounds.height * 0.25
-        let targetAspectRatio: CGFloat = 3.0 / 4.0 // 4x3グリッド (幅:高さ = 3:4)
-        
-        let sideMargin: CGFloat = 16
-        let topMargin: CGFloat = 20
-        let bottomMargin: CGFloat = 40
-        
-        let availableWidth = bounds.width - (sideMargin * 2)
-        let availableHeight = cameraHeight * 0.72 - topMargin - bottomMargin // カメラ部分18%を使用
-        
-        var frameWidth: CGFloat
-        var frameHeight: CGFloat
-        
-        if availableWidth / availableHeight > targetAspectRatio {
-            frameHeight = availableHeight
-            frameWidth = frameHeight * targetAspectRatio
-        } else {
-            frameWidth = availableWidth
-            frameHeight = frameWidth / targetAspectRatio
-        }
-        
-        // フレームを画面中央上部に配置
+        let deviceAspectRatio = bounds.width / bounds.height
+        let cameraWidth = min(cameraHeight * deviceAspectRatio, bounds.width * 0.9)
+
+        // ROIフレームをカメラ全体のサイズに設定（量子化は全体で行う）
+        let cameraStartX = (bounds.width - cameraWidth) / 2
         roiFrame = CGRect(
-            x: (bounds.width - frameWidth) / 2,
-            y: topMargin + (availableHeight - frameHeight) / 2,
-            width: frameWidth,
-            height: frameHeight
+            x: cameraStartX,
+            y: 0,  // カメラセクション内での相対位置
+            width: cameraWidth,
+            height: cameraHeight
         )
-        
-        print("UnifiedGameView: ROI frame set to \(roiFrame) for vertical layout")
+
+        print("UnifiedGameView: ROI frame set to full camera size \(roiFrame)")
+
+        // VisionProcessorにカメラ全体のサイズを通知
+        visionProcessor.updateROI(
+            frame: roiFrame, previewBounds: CGRect(origin: .zero, size: bounds))
     }
-    
+
     // MARK: - Game Logic
-    
+
     private func startGame() {
         print("UnifiedGameView: Starting game")
         isGameActive = true
@@ -392,12 +447,12 @@ struct UnifiedGameView: View, GamePieceProvider {
         shapeHistoryManager.clearHistory()
         requestNextPiece()
     }
-    
+
     private func requestNextPiece() {
         print("UnifiedGameView: Requesting next piece")
         countdownManager.startCountdown()
     }
-    
+
     private func toggleGamePause() {
         if isGameActive {
             gameCore.pauseGame()
@@ -408,54 +463,54 @@ struct UnifiedGameView: View, GamePieceProvider {
         }
         isGameActive.toggle()
     }
-    
+
     private func triggerFlashEffect() {
         showFlashEffect = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             showFlashEffect = false
         }
     }
-    
+
     private func showSuccessEffect() {
         showSuccessHighlight = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             showSuccessHighlight = false
         }
     }
-    
+
     private func showFailureEffect() {
         showFailureHighlight = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             showFailureHighlight = false
         }
     }
-    
+
     #if targetEnvironment(simulator)
-    private func generateTestPiece() {
-        let testPiece = Polyomino(cells: [
-            (x: 0, y: 0),
-            (x: 0, y: 1),
-            (x: 0, y: 2),
-            (x: 1, y: 2)
-        ])
-        
-        providePieceToGame(testPiece)
-    }
+        private func generateTestPiece() {
+            let testPiece = Polyomino(cells: [
+                (x: 0, y: 0),
+                (x: 0, y: 1),
+                (x: 0, y: 2),
+                (x: 1, y: 2),
+            ])
+
+            providePieceToGame(testPiece)
+        }
     #endif
-    
+
     private func providePieceToGame(_ piece: Polyomino) {
         shapeHistoryManager.addShape(piece)
         let spawnColumn = piece.cells.isEmpty ? 5 : piece.cells.map { $0.x }.min() ?? 5
         gameCore.spawnPiece(piece, at: spawnColumn)
         showSuccessEffect()
     }
-    
+
     // MARK: - Camera Setup
-    
+
     private func setupCamera() {
         cameraManager.delegate = self
         cameraManager.requestPermission()
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             updateROIFrame()
         }
@@ -467,11 +522,13 @@ struct UnifiedGameView: View, GamePieceProvider {
 extension UnifiedGameView {
     func requestNextPiece(completion: @escaping (Polyomino?) -> Void) {
         print("UnifiedGameView: GamePieceProvider requestNextPiece called")
-        
+
         DispatchQueue.global(qos: .userInitiated).async {
             if self.captureState.isStable && self.currentIoU >= 0.6,
-               let extractedPiece = self.shapeExtractor.extractBestShape(from: self.captureState.grid) {
-                
+                let extractedPiece = self.shapeExtractor.extractBestShape(
+                    from: self.captureState.grid)
+            {
+
                 let validation = self.shapeHistoryManager.validatePiece(extractedPiece)
                 if validation.isValid {
                     DispatchQueue.main.async {
@@ -480,7 +537,7 @@ extension UnifiedGameView {
                     return
                 }
             }
-            
+
             // Fallback after timeout
             DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
                 let fallbackPiece = self.shapeHistoryManager.generateFallbackPiece()
@@ -488,38 +545,42 @@ extension UnifiedGameView {
             }
         }
     }
-    
+
     func isAvailable() -> Bool {
         return visionProcessor.detectionEnabled && cameraManager.isSessionRunning
     }
-    
+
     func beginCountdown() {
         print("UnifiedGameView: Beginning countdown")
         countdownManager.startCountdown()
     }
-    
+
     func cancelCountdown() {
         print("UnifiedGameView: Cancelling countdown")
         countdownManager.stopCountdown()
     }
-    
+
     func captureAtZero() -> Polyomino? {
         print("UnifiedGameView: Capturing at zero")
         let currentGrid = captureState.grid
-        
+
         if let extractedPiece = shapeExtractor.extractBestShape(from: currentGrid) {
             let validation = shapeHistoryManager.validatePiece(extractedPiece)
             if validation.isValid {
-                print("UnifiedGameView: Successfully captured piece at zero: \(extractedPiece.cells.count) cells")
+                print(
+                    "UnifiedGameView: Successfully captured piece at zero: \(extractedPiece.cells.count) cells"
+                )
                 return extractedPiece
             } else {
-                print("UnifiedGameView: Validation failed: \(validation.errorMessage ?? "Unknown error")")
+                print(
+                    "UnifiedGameView: Validation failed: \(validation.errorMessage ?? "Unknown error")"
+                )
             }
         }
-        
+
         return nil
     }
-    
+
     func fallbackTetromino() -> Polyomino {
         print("UnifiedGameView: Generating fallback tetromino")
         return shapeHistoryManager.generateFallbackPiece()
@@ -532,10 +593,10 @@ extension UnifiedGameView: CountdownManagerDelegate {
     func countdownManager(_ manager: CountdownManager, didUpdateCount count: Int) {
         print("UnifiedGameView: Countdown updated to \(count)")
     }
-    
+
     func countdownManagerDidReachZero(_ manager: CountdownManager) {
         print("UnifiedGameView: Countdown reached zero")
-        
+
         if let piece = captureAtZero() {
             providePieceToGame(piece)
         } else {
@@ -544,7 +605,7 @@ extension UnifiedGameView: CountdownManagerDelegate {
             showFailureEffect()
         }
     }
-    
+
     func countdownManager(_ manager: CountdownManager, didEncounterError error: Error) {
         print("UnifiedGameView: Countdown error: \(error)")
     }
@@ -556,7 +617,7 @@ extension UnifiedGameView: CameraManagerDelegate {
     func cameraManager(_ manager: CameraManager, didOutput pixelBuffer: CVPixelBuffer) {
         visionProcessor.processFrame(pixelBuffer)
     }
-    
+
     func cameraManager(_ manager: CameraManager, didEncounterError error: Error) {
         print("UnifiedGameView: Camera error: \(error)")
     }
@@ -565,28 +626,32 @@ extension UnifiedGameView: CameraManagerDelegate {
 // MARK: - VisionProcessorDelegate
 
 extension UnifiedGameView: VisionProcessorDelegate {
-    func visionProcessor(_ processor: VisionProcessor, didDetectPersonMask mask: CVPixelBuffer, in roi: CGRect) {
+    func visionProcessor(
+        _ processor: VisionProcessor, didDetectPersonMask mask: CVPixelBuffer, in roi: CGRect
+    ) {
         let grid = quantizationProcessor.quantize(
             mask: mask,
             roi: roi,
             threshold: quantizationProcessor.getAdaptiveThreshold()
         )
-        
+
         DispatchQueue.main.async {
             self.captureState.grid = grid
-            
+
             if let candidate = self.shapeExtractor.extractBestShape(from: grid) {
-                self.currentIoU = Float(candidate.cells.count) / 4.0 // Simplified IoU calculation
+                self.currentIoU = Float(candidate.cells.count) / 4.0  // Simplified IoU calculation
                 self.captureState.iou = self.currentIoU
                 self.captureState.stableMs = Int(self.quantizationProcessor.stableTime * 1000)
             }
         }
     }
-    
-    func visionProcessor(_ processor: VisionProcessor, didDetectPose pose: VNHumanBodyPoseObservation) {
+
+    func visionProcessor(
+        _ processor: VisionProcessor, didDetectPose pose: VNHumanBodyPoseObservation
+    ) {
         // Additional pose validation if needed
     }
-    
+
     func visionProcessor(_ processor: VisionProcessor, didEncounterError error: Error) {
         print("UnifiedGameView: Vision processing error: \(error)")
     }
@@ -602,6 +667,36 @@ struct ControlButtonStyle: ButtonStyle {
             .frame(width: 50, height: 40)
             .background(
                 configuration.isPressed ? Color.blue.opacity(0.8) : Color.blue.opacity(0.6)
+            )
+            .cornerRadius(8)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+struct SoftDropButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title2)
+            .foregroundColor(.white)
+            .frame(width: 50, height: 40)
+            .background(
+                configuration.isPressed ? Color.green.opacity(0.8) : Color.green.opacity(0.6)
+            )
+            .cornerRadius(8)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+struct HardDropButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title2)
+            .foregroundColor(.white)
+            .frame(width: 50, height: 40)
+            .background(
+                configuration.isPressed ? Color.red.opacity(0.8) : Color.red.opacity(0.6)
             )
             .cornerRadius(8)
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)

@@ -11,34 +11,34 @@ struct GameView: View {
     @ObservedObject var gameCore: GameCore
     let initialPiece: Polyomino
     let pieceProvider: GamePieceProvider?
-    
+
     @State private var boardScale: CGFloat = 0.8
     @State private var showingResult = false
     @State private var score = 0
     @State private var lines = 0
     @State private var elapsedTime: TimeInterval = 0
     @State private var gameTimer: Timer?
-    
+
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         GeometryReader { geometry in
             let screenWidth = geometry.size.width
             let screenHeight = geometry.size.height
-            
+
             // レイアウト計算
             let maxGameBoardWidth = min(250, screenWidth * 0.65)
             let sideWidth = max(60, min(80, (screenWidth - maxGameBoardWidth) / 2 * 0.8))
             let spacing = max(8, min(20, screenWidth * 0.03))
             let gameBoardHeight = min(500, screenHeight * 0.6)
-            
+
             VStack(spacing: 0) {
                 // デバッグ用ヘッダー
                 Text("TETRIS GAME")
                     .font(.title)
                     .foregroundColor(.white)
                     .padding(.top)
-                
+
                 Text("Initial Piece: \(initialPiece.cells.count) cells")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.7))
@@ -52,22 +52,22 @@ struct GameView: View {
                 )
                 .frame(height: 60)
                 .background(Color.black.opacity(0.3))
-                
+
                 // ゲーム盤面
                 HStack(spacing: spacing) {
                     // 左側：次のピース情報
                     VStack(spacing: 12) {
                         NextPieceView(nextPiece: gameCore.nextPiecePreview)
-                        
+
                         LevelIndicator(
                             level: gameCore.gameState.level,
                             progress: Double(lines % 10) / 10.0
                         )
-                        
+
                         Spacer()
                     }
                     .frame(width: sideWidth)
-                    
+
                     // 中央：ゲーム盤
                     ZStack {
                         GameBoardView(
@@ -75,33 +75,33 @@ struct GameView: View {
                             targetSize: CGSize(width: maxGameBoardWidth, height: gameBoardHeight)
                         )
                         .scaleEffect(boardScale)
-                        
+
                         // 次ピース待機表示
                         if gameCore.waitingForNextPiece {
                             WaitingForPieceOverlay()
                         }
                     }
                     .frame(width: maxGameBoardWidth, height: gameBoardHeight)
-                    
+
                     // 右側：統計情報
                     VStack(spacing: 12) {
                         StatsView(gameState: gameCore.gameState)
-                        
+
                         Spacer()
                     }
                     .frame(width: sideWidth)
                 }
                 .padding(.horizontal, max(8, screenWidth * 0.02))
                 .frame(maxHeight: .infinity)
-                
+
                 Spacer()
-                
+
                 // 操作ボタン
                 GameControlsView(gameCore: gameCore)
                     .padding(.horizontal, max(8, screenWidth * 0.02))
                     .padding(.bottom, 30)
                     .frame(height: min(150, screenHeight * 0.15))
-                
+
                 // 緊急用フォールバック表示
                 if gameCore.gameState.currentPiece == nil {
                     VStack {
@@ -158,25 +158,26 @@ struct GameView: View {
             )
         }
     }
-    
+
     private func startGame() {
         print("GameView: startGame() called")
-        print("GameView: Initial piece has \(initialPiece.cells.count) cells: \(initialPiece.cells)")
-        
+        print(
+            "GameView: Initial piece has \(initialPiece.cells.count) cells: \(initialPiece.cells)")
+
         // ゲームを先に開始
         print("GameView: Calling gameCore.startGame()")
         gameCore.startGame()
         print("GameView: gameCore.startGame() completed, isGameRunning = \(gameCore.isGameRunning)")
-        
+
         let spawnColumn = Int(Double.random(in: 0...9))
         print("GameView: Spawning initial piece at column \(spawnColumn)")
         gameCore.spawnPiece(initialPiece, at: spawnColumn)
         print("GameView: Piece spawning completed")
-        
+
         print("GameView: Starting timer")
         startTimer()
         print("GameView: Timer started")
-        
+
         // ピースプロバイダーを非同期で設定
         if let provider = pieceProvider {
             print("GameView: Setting piece provider asynchronously")
@@ -187,29 +188,29 @@ struct GameView: View {
         } else {
             print("GameView: Warning - No piece provider available")
         }
-        
+
         print("GameView: startGame() completed successfully")
     }
-    
+
     private func startTimer() {
         // 既存のタイマーを停止
         gameTimer?.invalidate()
         gameTimer = nil
-        
+
         print("GameView: Starting elapsed time timer")
         gameTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             elapsedTime += 1
         }
     }
-    
+
     private func endGame() {
         gameTimer?.invalidate()
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             showingResult = true
         }
     }
-    
+
     private func restartGame() {
         gameTimer?.invalidate()
         elapsedTime = 0
@@ -218,7 +219,7 @@ struct GameView: View {
         startGame()
         showingResult = false
     }
-    
+
 }
 
 struct GameInfoBar: View {
@@ -226,13 +227,13 @@ struct GameInfoBar: View {
     let lines: Int
     let time: TimeInterval
     let gameOver: Bool
-    
+
     private var formattedTime: String {
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60
         return String(format: "%02d:%02d", minutes, seconds)
     }
-    
+
     var body: some View {
         HStack {
             InfoItem(title: "スコア", value: "\(score)")
@@ -240,7 +241,7 @@ struct GameInfoBar: View {
             InfoItem(title: "ライン", value: "\(lines)")
             Spacer()
             InfoItem(title: "時間", value: formattedTime)
-            
+
             if gameOver {
                 Spacer()
                 Text("GAME OVER")
@@ -258,7 +259,7 @@ struct GameInfoBar: View {
 struct InfoItem: View {
     let title: String
     let value: String
-    
+
     var body: some View {
         VStack(spacing: 2) {
             Text(title)
@@ -274,13 +275,13 @@ struct InfoItem: View {
 
 struct NextPieceView: View {
     let nextPiece: Polyomino?
-    
+
     var body: some View {
         VStack(spacing: 8) {
             Text("次のピース")
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.8))
-            
+
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color.gray.opacity(0.3))
                 .frame(width: 60, height: 60)
@@ -301,10 +302,10 @@ struct NextPieceView: View {
 
 struct NextPiecePreview: View {
     let piece: Polyomino
-    
+
     var body: some View {
         let cellSize: CGFloat = 8
-        
+
         ForEach(Array(piece.cells.enumerated()), id: \.offset) { _, cell in
             Rectangle()
                 .fill(Color.cyan)
@@ -319,13 +320,13 @@ struct NextPiecePreview: View {
 
 struct WaitingForPieceOverlay: View {
     @State private var animationPhase: Double = 0
-    
+
     var body: some View {
         VStack(spacing: 16) {
             ProgressView()
                 .scaleEffect(1.5)
                 .tint(.white)
-            
+
             Text("次のピースを待機中...")
                 .font(.headline)
                 .foregroundColor(.white)
@@ -345,18 +346,18 @@ struct WaitingForPieceOverlay: View {
 struct LevelIndicator: View {
     let level: Int
     let progress: Double
-    
+
     var body: some View {
         VStack(spacing: 8) {
             Text("レベル \(level)")
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.8))
-            
+
             VStack(spacing: 4) {
                 ProgressView(value: max(0.0, min(1.0, progress)))
                     .tint(.yellow)
                     .frame(height: 4)
-                
+
                 Text("\(Int(progress * 10))/10")
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.6))
@@ -367,14 +368,14 @@ struct LevelIndicator: View {
 
 struct StatsView: View {
     let gameState: GameState
-    
+
     var body: some View {
         VStack(spacing: 16) {
             StatItem(
                 title: "高さ",
                 value: "\(gameState.getColumnHeights().max() ?? 0)"
             )
-            
+
             StatItem(
                 title: "穴",
                 value: "\(gameState.getHoles())"
@@ -386,13 +387,13 @@ struct StatsView: View {
 struct StatItem: View {
     let title: String
     let value: String
-    
+
     var body: some View {
         VStack(spacing: 4) {
             Text(title)
                 .font(.caption2)
                 .foregroundColor(.white.opacity(0.6))
-            
+
             Text(value)
                 .font(.caption)
                 .fontWeight(.medium)
@@ -403,20 +404,20 @@ struct StatItem: View {
 
 struct GameControlsView: View {
     @ObservedObject var gameCore: GameCore
-    
+
     var body: some View {
         VStack(spacing: 16) {
             HStack(spacing: 20) {
                 // 左移動
                 GameButton(
                     icon: "arrowshape.left.fill",
-                    action: { 
+                    action: {
                         _ = gameCore.movePiece(dx: -1)
                     }
                 )
-                
+
                 Spacer()
-                
+
                 // 回転
                 GameButton(
                     icon: "arrow.clockwise",
@@ -424,9 +425,9 @@ struct GameControlsView: View {
                         _ = gameCore.rotatePiece()
                     }
                 )
-                
+
                 Spacer()
-                
+
                 // 右移動
                 GameButton(
                     icon: "arrowshape.right.fill",
@@ -435,8 +436,13 @@ struct GameControlsView: View {
                     }
                 )
             }
-            
+
             HStack(spacing: 20) {
+                // ソフトドロップ
+                SoftDropButton(gameCore: gameCore)
+
+                Spacer()
+
                 // ハードドロップ
                 GameButton(
                     icon: "arrowshape.down.fill",
@@ -445,9 +451,9 @@ struct GameControlsView: View {
                     },
                     style: .secondary
                 )
-                
+
                 Spacer()
-                
+
                 // ポーズ/再開
                 GameButton(
                     icon: gameCore.isGameRunning ? "pause.fill" : "play.fill",
@@ -474,13 +480,13 @@ struct GameButton: View {
     let icon: String
     let action: () -> Void
     let style: GameButtonStyle
-    
+
     init(icon: String, action: @escaping () -> Void, style: GameButtonStyle = .primary) {
         self.icon = icon
         self.action = action
         self.style = style
     }
-    
+
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
@@ -488,13 +494,38 @@ struct GameButton: View {
                 .foregroundColor(.white)
                 .frame(width: 60, height: 60)
                 .background(
-                    style == .primary ? 
-                    Color.blue.opacity(0.8) : 
-                    Color.gray.opacity(0.6)
+                    style == .primary ? Color.blue.opacity(0.8) : Color.gray.opacity(0.6)
                 )
                 .cornerRadius(30)
                 .shadow(radius: 4)
         }
+        .buttonStyle(PressedButtonStyle())
+    }
+}
+
+struct SoftDropButton: View {
+    @ObservedObject var gameCore: GameCore
+
+    var body: some View {
+        Button("↓") {
+            // タップ時は1回だけ下に移動
+            _ = gameCore.movePiece(dx: 0, dy: 1)
+        }
+        .font(.title2)
+        .foregroundColor(.white)
+        .frame(width: 60, height: 60)
+        .background(Color.green.opacity(0.8))
+        .cornerRadius(30)
+        .shadow(radius: 4)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    gameCore.startSoftDrop()
+                }
+                .onEnded { _ in
+                    gameCore.stopSoftDrop()
+                }
+        )
         .buttonStyle(PressedButtonStyle())
     }
 }

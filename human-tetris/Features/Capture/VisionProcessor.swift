@@ -29,6 +29,10 @@ class VisionProcessor: ObservableObject {
     @Published var isProcessing = false
     @Published var detectionEnabled = true
     
+    // ROIフレーム（UIKit座標系）
+    var roiFrame: CGRect = .zero
+    var previewLayerBounds: CGRect = .zero
+    
     init() {
         personSegmentationRequest = VNGeneratePersonSegmentationRequest()
         personSegmentationRequest.qualityLevel = .balanced
@@ -82,19 +86,44 @@ class VisionProcessor: ObservableObject {
     private func processPersonSegmentation(_ result: VNPixelBufferObservation, originalBuffer: CVPixelBuffer) {
         let maskBuffer = result.pixelBuffer
         
+        // UIKit座標系のROIフレームをVision座標系（ピクセル座標）に変換
         let imageWidth = CVPixelBufferGetWidth(originalBuffer)
         let imageHeight = CVPixelBufferGetHeight(originalBuffer)
         
-        let roiWidth = imageWidth / 3
-        let roiHeight = imageHeight / 2
-        let roiX = (imageWidth - roiWidth) / 2
-        let roiY = (imageHeight - roiHeight) / 2
-        
-        let roi = CGRect(x: roiX, y: roiY, width: roiWidth, height: roiHeight)
+        let roi: CGRect
+        if roiFrame != .zero && previewLayerBounds != .zero {
+            // UIKit座標系からピクセル座標系への変換
+            let scaleX = CGFloat(imageWidth) / previewLayerBounds.width
+            let scaleY = CGFloat(imageHeight) / previewLayerBounds.height
+            
+            roi = CGRect(
+                x: roiFrame.origin.x * scaleX,
+                y: roiFrame.origin.y * scaleY,
+                width: roiFrame.width * scaleX,
+                height: roiFrame.height * scaleY
+            )
+            
+            print("VisionProcessor: Converted ROI from UIKit \(roiFrame) to pixel \(roi)")
+        } else {
+            // フォールバック：画像中央の3:4領域を使用
+            let roiWidth = imageWidth * 3 / 5  // より大きな領域を使用
+            let roiHeight = imageHeight * 4 / 5
+            let roiX = (imageWidth - roiWidth) / 2
+            let roiY = (imageHeight - roiHeight) / 2
+            
+            roi = CGRect(x: roiX, y: roiY, width: roiWidth, height: roiHeight)
+            print("VisionProcessor: Using fallback ROI: \(roi)")
+        }
         
         DispatchQueue.main.async {
             self.delegate?.visionProcessor(self, didDetectPersonMask: maskBuffer, in: roi)
         }
+    }
+    
+    func updateROI(frame: CGRect, previewBounds: CGRect) {
+        roiFrame = frame
+        previewLayerBounds = previewBounds
+        print("VisionProcessor: Updated ROI frame to \(frame) with preview bounds \(previewBounds)")
     }
     
     private func processPoseDetection(_ result: VNHumanBodyPoseObservation) {
