@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		ED2A1FEC2E4FE40200596C91 /* Inject in Frameworks */ = {isa = PBXBuildFile; productRef = ED2A1FEB2E4FE40200596C91 /* Inject */; };
 		ED2A20732E50EDC300596C91 /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ED2A20712E50EDAF00596C91 /* ARKit.framework */; };
-
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -28,9 +27,6 @@
 			remoteInfo = "human-tetris";
 		};
 /* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		ED2A1FBD2E4FBEE000596C91 /* human-tetris.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "human-tetris.app"; sourceTree = BUILT_PRODUCTS_DIR; };

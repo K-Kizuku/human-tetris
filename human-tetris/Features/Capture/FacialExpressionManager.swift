@@ -5,9 +5,12 @@
 //  Created by Kiro on 2025/08/17.
 //
 
-import ARKit
 import Combine
 import SwiftUI
+
+#if canImport(ARKit)
+    import ARKit
+#endif
 
 // 表情の種類を定義
 enum FacialExpression: String, CaseIterable {
@@ -77,8 +80,10 @@ class FacialExpressionManager: NSObject, ObservableObject {
     private var simulationTimer: Timer?
 
     // ARKit関連
-    private var arSession: ARSession?
-    private var arConfiguration: ARFaceTrackingConfiguration?
+    #if canImport(ARKit)
+        private var arSession: ARSession?
+        private var arConfiguration: ARFaceTrackingConfiguration?
+    #endif
 
     override init() {
         super.init()
@@ -91,7 +96,11 @@ class FacialExpressionManager: NSObject, ObservableObject {
     }
 
     private func checkARKitSupport() {
-        isARKitSupported = ARFaceTrackingConfiguration.isSupported
+        #if canImport(ARKit)
+            isARKitSupported = ARFaceTrackingConfiguration.isSupported
+        #else
+            isARKitSupported = false
+        #endif
         print("FacialExpressionManager: ARKit Face Tracking supported: \(isARKitSupported)")
     }
 
@@ -138,77 +147,87 @@ class FacialExpressionManager: NSObject, ObservableObject {
     // MARK: - ARKit Face Tracking
 
     private func startARKitTracking() {
-        guard ARFaceTrackingConfiguration.isSupported else {
-            print("FacialExpressionManager: ARKit Face Tracking not supported")
-            return
-        }
+        #if canImport(ARKit)
+            guard ARFaceTrackingConfiguration.isSupported else {
+                print("FacialExpressionManager: ARKit Face Tracking not supported")
+                return
+            }
 
-        let configuration = ARFaceTrackingConfiguration()
-        configuration.maximumNumberOfTrackedFaces = 1
+            let configuration = ARFaceTrackingConfiguration()
+            configuration.maximumNumberOfTrackedFaces = 1
 
-        arSession = ARSession()
-        arSession?.delegate = self
+            arSession = ARSession()
+            arSession?.delegate = self
 
-        DispatchQueue.main.async {
-            self.arSession?.run(configuration)
-            self.isTracking = true
-        }
+            DispatchQueue.main.async {
+                self.arSession?.run(configuration)
+                self.isTracking = true
+            }
 
-        print("FacialExpressionManager: ARKit Face Tracking started")
+            print("FacialExpressionManager: ARKit Face Tracking started")
+        #else
+            print("FacialExpressionManager: ARKit not available")
+        #endif
     }
 
-    private func analyzeBlendShapes(_ blendShapes: [ARFaceAnchor.BlendShapeLocation: NSNumber]) -> (
-        expression: FacialExpression, confidence: Float
-    ) {
-        // 各表情の特徴的なblendShapeを分析
+    #if canImport(ARKit)
+        private func analyzeBlendShapes(_ blendShapes: [ARFaceAnchor.BlendShapeLocation: NSNumber])
+            -> (
+                expression: FacialExpression, confidence: Float
+            )
+        {
+            // 各表情の特徴的なblendShapeを分析
 
-        // 笑顔の検出
-        let mouthSmileLeft = blendShapes[.mouthSmileLeft]?.floatValue ?? 0.0
-        let mouthSmileRight = blendShapes[.mouthSmileRight]?.floatValue ?? 0.0
-        let _ = blendShapes[.cheekPuff]?.floatValue ?? 0.0  // 将来の拡張用
-        let smileIntensity = (mouthSmileLeft + mouthSmileRight) / 2.0
+            // 笑顔の検出
+            let mouthSmileLeft = blendShapes[.mouthSmileLeft]?.floatValue ?? 0.0
+            let mouthSmileRight = blendShapes[.mouthSmileRight]?.floatValue ?? 0.0
+            let _ = blendShapes[.cheekPuff]?.floatValue ?? 0.0  // 将来の拡張用
+            let smileIntensity = (mouthSmileLeft + mouthSmileRight) / 2.0
 
-        // 怒りの検出
-        let browDownLeft = blendShapes[.browDownLeft]?.floatValue ?? 0.0
-        let browDownRight = blendShapes[.browDownRight]?.floatValue ?? 0.0
-        let mouthFrownLeft = blendShapes[.mouthFrownLeft]?.floatValue ?? 0.0
-        let mouthFrownRight = blendShapes[.mouthFrownRight]?.floatValue ?? 0.0
-        let angerIntensity = (browDownLeft + browDownRight + mouthFrownLeft + mouthFrownRight) / 4.0
+            // 怒りの検出
+            let browDownLeft = blendShapes[.browDownLeft]?.floatValue ?? 0.0
+            let browDownRight = blendShapes[.browDownRight]?.floatValue ?? 0.0
+            let mouthFrownLeft = blendShapes[.mouthFrownLeft]?.floatValue ?? 0.0
+            let mouthFrownRight = blendShapes[.mouthFrownRight]?.floatValue ?? 0.0
+            let angerIntensity =
+                (browDownLeft + browDownRight + mouthFrownLeft + mouthFrownRight) / 4.0
 
-        // 驚きの検出
-        let browInnerUp = blendShapes[.browInnerUp]?.floatValue ?? 0.0
-        let eyeWideLeft = blendShapes[.eyeWideLeft]?.floatValue ?? 0.0
-        let eyeWideRight = blendShapes[.eyeWideRight]?.floatValue ?? 0.0
-        let jawOpen = blendShapes[.jawOpen]?.floatValue ?? 0.0
-        let surpriseIntensity = (browInnerUp + eyeWideLeft + eyeWideRight + jawOpen) / 4.0
+            // 驚きの検出
+            let browInnerUp = blendShapes[.browInnerUp]?.floatValue ?? 0.0
+            let eyeWideLeft = blendShapes[.eyeWideLeft]?.floatValue ?? 0.0
+            let eyeWideRight = blendShapes[.eyeWideRight]?.floatValue ?? 0.0
+            let jawOpen = blendShapes[.jawOpen]?.floatValue ?? 0.0
+            let surpriseIntensity = (browInnerUp + eyeWideLeft + eyeWideRight + jawOpen) / 4.0
 
-        // 悲しみの検出
-        let mouthLowerDownLeft = blendShapes[.mouthLowerDownLeft]?.floatValue ?? 0.0
-        let mouthLowerDownRight = blendShapes[.mouthLowerDownRight]?.floatValue ?? 0.0
-        let browOuterUpLeft = blendShapes[.browOuterUpLeft]?.floatValue ?? 0.0
-        let browOuterUpRight = blendShapes[.browOuterUpRight]?.floatValue ?? 0.0
-        let sadnessIntensity =
-            (mouthLowerDownLeft + mouthLowerDownRight + browOuterUpLeft + browOuterUpRight) / 4.0
+            // 悲しみの検出
+            let mouthLowerDownLeft = blendShapes[.mouthLowerDownLeft]?.floatValue ?? 0.0
+            let mouthLowerDownRight = blendShapes[.mouthLowerDownRight]?.floatValue ?? 0.0
+            let browOuterUpLeft = blendShapes[.browOuterUpLeft]?.floatValue ?? 0.0
+            let browOuterUpRight = blendShapes[.browOuterUpRight]?.floatValue ?? 0.0
+            let sadnessIntensity =
+                (mouthLowerDownLeft + mouthLowerDownRight + browOuterUpLeft + browOuterUpRight)
+                / 4.0
 
-        // 最も強い表情を決定
-        let intensities: [(expression: FacialExpression, intensity: Float)] = [
-            (.happy, smileIntensity),
-            (.angry, angerIntensity),
-            (.surprised, surpriseIntensity),
-            (.sad, sadnessIntensity),
-        ]
+            // 最も強い表情を決定
+            let intensities: [(expression: FacialExpression, intensity: Float)] = [
+                (.happy, smileIntensity),
+                (.angry, angerIntensity),
+                (.surprised, surpriseIntensity),
+                (.sad, sadnessIntensity),
+            ]
 
-        let strongestExpression = intensities.max { $0.intensity < $1.intensity }
+            let strongestExpression = intensities.max { $0.intensity < $1.intensity }
 
-        // 閾値を設定（0.3以上で表情として認識）
-        let threshold: Float = 0.3
+            // 閾値を設定（0.3以上で表情として認識）
+            let threshold: Float = 0.3
 
-        if let strongest = strongestExpression, strongest.intensity > threshold {
-            return (strongest.expression, strongest.intensity)
-        } else {
-            return (.neutral, 0.8)  // 中立表情
+            if let strongest = strongestExpression, strongest.intensity > threshold {
+                return (strongest.expression, strongest.intensity)
+            } else {
+                return (.neutral, 0.8)  // 中立表情
+            }
         }
-    }
+    #endif
 
     // MARK: - Simulation Mode (Fallback)
 
@@ -241,79 +260,81 @@ class FacialExpressionManager: NSObject, ObservableObject {
 
 // MARK: - ARSessionDelegate
 
-extension FacialExpressionManager: ARSessionDelegate {
-    func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
-        for anchor in anchors {
-            if anchor is ARFaceAnchor {
-                DispatchQueue.main.async {
-                    self.isFaceDetected = true
+#if canImport(ARKit)
+    extension FacialExpressionManager: ARSessionDelegate {
+        func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
+            for anchor in anchors {
+                if anchor is ARFaceAnchor {
+                    DispatchQueue.main.async {
+                        self.isFaceDetected = true
+                    }
+                    print("FacialExpressionManager: Face detected")
                 }
-                print("FacialExpressionManager: Face detected")
             }
         }
-    }
 
-    func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
-        for anchor in anchors {
-            guard let faceAnchor = anchor as? ARFaceAnchor else { continue }
+        func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
+            for anchor in anchors {
+                guard let faceAnchor = anchor as? ARFaceAnchor else { continue }
 
-            let blendShapes = faceAnchor.blendShapes
-            let (expression, confidence) = analyzeBlendShapes(blendShapes)
+                let blendShapes = faceAnchor.blendShapes
+                let (expression, confidence) = analyzeBlendShapes(blendShapes)
+
+                DispatchQueue.main.async {
+                    self.currentExpression = expression
+                    self.confidence = confidence
+                    self.isFaceDetected = true
+
+                    let result = FacialExpressionResult(
+                        expression: expression,
+                        confidence: confidence,
+                        timestamp: Date()
+                    )
+
+                    self.delegate?.facialExpressionManager(self, didDetectExpression: result)
+                }
+            }
+        }
+
+        func session(_ session: ARSession, didRemove anchors: [ARAnchor]) {
+            for anchor in anchors {
+                if anchor is ARFaceAnchor {
+                    DispatchQueue.main.async {
+                        self.isFaceDetected = false
+                        self.currentExpression = .neutral
+                        self.confidence = 0.0
+                    }
+                    print("FacialExpressionManager: Face lost")
+                }
+            }
+        }
+
+        func session(_ session: ARSession, didFailWithError error: Error) {
+            print("FacialExpressionManager: ARSession failed with error: \(error)")
 
             DispatchQueue.main.async {
-                self.currentExpression = expression
-                self.confidence = confidence
-                self.isFaceDetected = true
+                self.isTracking = false
+                self.isFaceDetected = false
+            }
 
-                let result = FacialExpressionResult(
-                    expression: expression,
-                    confidence: confidence,
-                    timestamp: Date()
-                )
+            // フォールバックとしてシミュレーションモードに切り替え
+            if !isARKitSupported {
+                startSimulation()
+            }
+        }
 
-                self.delegate?.facialExpressionManager(self, didDetectExpression: result)
+        func sessionWasInterrupted(_ session: ARSession) {
+            print("FacialExpressionManager: ARSession was interrupted")
+            DispatchQueue.main.async {
+                self.isTracking = false
+            }
+        }
+
+        func sessionInterruptionEnded(_ session: ARSession) {
+            print("FacialExpressionManager: ARSession interruption ended")
+            DispatchQueue.main.async {
+                self.isTracking = true
             }
         }
     }
-
-    func session(_ session: ARSession, didRemove anchors: [ARAnchor]) {
-        for anchor in anchors {
-            if anchor is ARFaceAnchor {
-                DispatchQueue.main.async {
-                    self.isFaceDetected = false
-                    self.currentExpression = .neutral
-                    self.confidence = 0.0
-                }
-                print("FacialExpressionManager: Face lost")
-            }
-        }
-    }
-
-    func session(_ session: ARSession, didFailWithError error: Error) {
-        print("FacialExpressionManager: ARSession failed with error: \(error)")
-
-        DispatchQueue.main.async {
-            self.isTracking = false
-            self.isFaceDetected = false
-        }
-
-        // フォールバックとしてシミュレーションモードに切り替え
-        if !isARKitSupported {
-            startSimulation()
-        }
-    }
-
-    func sessionWasInterrupted(_ session: ARSession) {
-        print("FacialExpressionManager: ARSession was interrupted")
-        DispatchQueue.main.async {
-            self.isTracking = false
-        }
-    }
-
-    func sessionInterruptionEnded(_ session: ARSession) {
-        print("FacialExpressionManager: ARSession interruption ended")
-        DispatchQueue.main.async {
-            self.isTracking = true
-        }
-    }
-}
+#endif

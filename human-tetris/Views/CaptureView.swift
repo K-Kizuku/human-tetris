@@ -28,7 +28,50 @@ struct CaptureView: View, GamePieceProvider {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color.black.ignoresSafeArea()
+                // ダイナミック背景
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.black,
+                        Color.purple.opacity(0.6),
+                        Color.blue.opacity(0.4),
+                        Color.cyan.opacity(0.3),
+                        Color.black,
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+
+                // アニメーション背景パーティクル
+                ForEach(0..<15, id: \.self) { i in
+                    let colors: [Color] = [.cyan, .purple, .pink, .blue, .green]
+                    let randomColor = colors[i % colors.count]
+
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                gradient: Gradient(colors: [
+                                    randomColor.opacity(0.6),
+                                    randomColor.opacity(0.3),
+                                    Color.clear,
+                                ]),
+                                center: .center,
+                                startRadius: 1,
+                                endRadius: 25
+                            )
+                        )
+                        .frame(width: CGFloat.random(in: 3...10))
+                        .position(
+                            x: CGFloat.random(in: 0...UIScreen.main.bounds.width),
+                            y: CGFloat.random(in: 0...UIScreen.main.bounds.height)
+                        )
+                        .opacity(0.3)
+                        .animation(
+                            .easeInOut(duration: Double.random(in: 2...4))
+                                .repeatForever(autoreverses: true),
+                            value: i
+                        )
+                }
 
                 if let previewLayer = multiCameraManager.backCameraPreviewLayer {
                     CameraPreview(previewLayer: previewLayer)
@@ -139,7 +182,7 @@ struct CaptureView: View, GamePieceProvider {
                             Button("ピース確定") {
                                 confirmPiece()
                             }
-                            .buttonStyle(PrimaryButtonStyle())
+                            .buttonStyle(NeonPrimaryButtonStyle())
                             .animation(.bouncy, value: quantizationProcessor.isStable)
                         }
 
@@ -149,7 +192,7 @@ struct CaptureView: View, GamePieceProvider {
                                 Button("テストピース生成") {
                                     generateTestPiece()
                                 }
-                                .buttonStyle(PrimaryButtonStyle())
+                                .buttonStyle(NeonPrimaryButtonStyle())
                             }
                         #endif
 
@@ -157,14 +200,14 @@ struct CaptureView: View, GamePieceProvider {
                             Button("戻る") {
                                 dismiss()
                             }
-                            .buttonStyle(SecondaryButtonStyle())
+                            .buttonStyle(NeonSecondaryButtonStyle())
 
                             Spacer()
 
                             Button(visionProcessor.detectionEnabled ? "一時停止" : "再開") {
                                 visionProcessor.toggleDetection()
                             }
-                            .buttonStyle(SecondaryButtonStyle())
+                            .buttonStyle(NeonSecondaryButtonStyle())
                         }
                         .padding(.horizontal)
                     }
@@ -614,35 +657,114 @@ extension CaptureView: VisionProcessorDelegate {
     }
 }
 
-struct PrimaryButtonStyle: ButtonStyle {
+struct NeonPrimaryButtonStyle: ButtonStyle {
+    @State private var isGlowing = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
-            .foregroundColor(.white)
+            .fontWeight(.bold)
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [.white, .cyan],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
             .frame(maxWidth: .infinity)
             .padding()
             .background(
-                configuration.isPressed ? Color.green.opacity(0.8) : Color.green
+                ZStack {
+                    // ベース背景
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.green.opacity(0.8),
+                                    Color.cyan.opacity(0.6),
+                                    Color.black.opacity(0.8),
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    // ネオンボーダー
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            LinearGradient(
+                                colors: [.green, .cyan, .green],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 2
+                        )
+                        .shadow(color: .green, radius: isGlowing ? 8 : 4)
+                        .shadow(color: .cyan, radius: isGlowing ? 6 : 3)
+                }
             )
-            .cornerRadius(12)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                    isGlowing = true
+                }
+            }
     }
 }
 
-struct SecondaryButtonStyle: ButtonStyle {
+struct NeonSecondaryButtonStyle: ButtonStyle {
+    @State private var isGlowing = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline)
-            .foregroundColor(.white)
+            .fontWeight(.semibold)
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [.white, .purple],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .background(
-                configuration.isPressed ? Color.gray.opacity(0.8) : Color.gray.opacity(0.7)
+                ZStack {
+                    // ベース背景
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.purple.opacity(0.7),
+                                    Color.gray.opacity(0.6),
+                                    Color.black.opacity(0.8),
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    // ネオンボーダー
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(
+                            LinearGradient(
+                                colors: [.purple, .pink, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.5
+                        )
+                        .shadow(color: .purple, radius: isGlowing ? 6 : 3)
+                }
             )
-            .cornerRadius(8)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                    isGlowing = true
+                }
+            }
     }
 }
 

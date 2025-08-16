@@ -188,6 +188,9 @@ class MultiCameraManager: NSObject, ObservableObject {
                             } else {
                                 frontCameraConnection.videoOrientation = .portrait
                             }
+
+                            // ミラーリングを手動で設定するため、自動調整を無効化
+                            frontCameraConnection.automaticallyAdjustsVideoMirroring = false
                             frontCameraConnection.isVideoMirrored = true
                         }
                     }
@@ -220,6 +223,9 @@ class MultiCameraManager: NSObject, ObservableObject {
                 if session.canAddConnection(frontPreviewConnection) {
                     session.addConnection(frontPreviewConnection)
                     frontPreviewLayer.videoGravity = .resizeAspectFill
+
+                    // プレビューレイヤーのミラーリングを手動で設定
+                    frontPreviewConnection.automaticallyAdjustsVideoMirroring = false
                     frontPreviewConnection.isVideoMirrored = true
                     self.frontCameraPreviewLayer = frontPreviewLayer
                 }

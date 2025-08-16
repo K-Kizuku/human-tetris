@@ -52,7 +52,17 @@ struct GameView: View {
                         dropSpeedMultiplier: gameCore.currentDropSpeedMultiplier
                     )
                     .frame(height: topBarHeight)
-                    .background(Color.black.opacity(0.3))
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                Color.purple.opacity(0.8),
+                                Color.blue.opacity(0.6),
+                                Color.cyan.opacity(0.4),
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                     // 表情認識オーバーレイ（右上に配置）
                     HStack {
@@ -87,14 +97,31 @@ struct GameView: View {
                     }
                     .frame(width: sideWidth)
 
-                    // 中央：ゲーム盤
+                    // 中央：ゲーム盤（ネオンフレーム付き）
                     ZStack {
+                        // ネオンフレーム
+                        RoundedRectangle(cornerRadius: 15)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [.cyan, .blue, .purple, .pink, .cyan],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 4
+                            )
+                            .shadow(color: .cyan, radius: 8)
+                            .shadow(color: .blue, radius: 12)
+                            .animation(
+                                .easeInOut(duration: 2.0).repeatForever(autoreverses: true),
+                                value: elapsedTime)
+
                         GameBoardView(
                             gameCore: gameCore,
                             targetSize: CGSize(
                                 width: maxGameBoardWidth, height: gameBoardHeight)
                         )
                         .scaleEffect(boardScale)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
 
                         // 次ピース待機表示
                         if gameCore.waitingForNextPiece {
@@ -135,11 +162,74 @@ struct GameView: View {
             }
         }
         .background(
-            LinearGradient(
-                gradient: Gradient(colors: [Color.black, Color.blue.opacity(0.3)]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            ZStack {
+                // ベース背景：ダイナミックグラデーション
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.black,
+                        Color.purple.opacity(0.6),
+                        Color.blue.opacity(0.4),
+                        Color.cyan.opacity(0.3),
+                        Color.black,
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .animation(
+                    .easeInOut(duration: 3.0).repeatForever(autoreverses: true), value: elapsedTime)
+
+                // アニメーション背景パーティクル（より鮮やか）
+                ForEach(0..<25, id: \.self) { i in
+                    let colors: [Color] = [.cyan, .purple, .pink, .blue, .green]
+                    let randomColor = colors[i % colors.count]
+
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                gradient: Gradient(colors: [
+                                    randomColor.opacity(0.8),
+                                    randomColor.opacity(0.4),
+                                    Color.clear,
+                                ]),
+                                center: .center,
+                                startRadius: 1,
+                                endRadius: 25
+                            )
+                        )
+                        .frame(width: CGFloat.random(in: 3...12))
+                        .position(
+                            x: CGFloat.random(in: 0...UIScreen.main.bounds.width),
+                            y: CGFloat.random(in: 0...UIScreen.main.bounds.height)
+                        )
+                        .opacity(0.4)
+                        .scaleEffect(sin(elapsedTime + Double(i)) * 0.3 + 1.0)
+                        .animation(
+                            .easeInOut(duration: Double.random(in: 1.5...3.5))
+                                .repeatForever(autoreverses: true),
+                            value: elapsedTime
+                        )
+                }
+
+                // グリッド背景
+                Path { path in
+                    let spacing: CGFloat = 30
+                    let width = UIScreen.main.bounds.width
+                    let height = UIScreen.main.bounds.height
+
+                    // 縦線
+                    for i in stride(from: 0, through: width, by: spacing) {
+                        path.move(to: CGPoint(x: i, y: 0))
+                        path.addLine(to: CGPoint(x: i, y: height))
+                    }
+
+                    // 横線
+                    for i in stride(from: 0, through: height, by: spacing) {
+                        path.move(to: CGPoint(x: 0, y: i))
+                        path.addLine(to: CGPoint(x: width, y: i))
+                    }
+                }
+                .stroke(Color.cyan.opacity(0.1), lineWidth: 0.5)
+            }
             .ignoresSafeArea()
         )
         .onAppear {
@@ -271,6 +361,8 @@ struct GameInfoBar: View {
     let gameOver: Bool
     let dropSpeedMultiplier: Double?  // 落下速度倍率（オプショナル）
 
+    @State private var glowAnimation = false
+
     private var formattedTime: String {
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60
@@ -279,11 +371,11 @@ struct GameInfoBar: View {
 
     var body: some View {
         HStack {
-            // 左側：基本情報（コンパクト）
-            HStack(spacing: 16) {
-                InfoItem(title: "スコア", value: "\(score)")
-                InfoItem(title: "ライン", value: "\(lines)")
-                InfoItem(title: "時間", value: formattedTime)
+            // 左側：基本情報（ネオンスタイル）
+            HStack(spacing: 20) {
+                NeonInfoItem(title: "SCORE", value: "\(score)", color: .cyan)
+                NeonInfoItem(title: "LINES", value: "\(lines)", color: .green)
+                NeonInfoItem(title: "TIME", value: formattedTime, color: .yellow)
             }
 
             Spacer()
@@ -291,69 +383,216 @@ struct GameInfoBar: View {
             // 右側：ゲーム状態
             if gameOver {
                 Text("GAME OVER")
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.red)
-                    .animation(.bouncy, value: gameOver)
+                    .font(.headline)
+                    .fontWeight(.black)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.red, .orange, .red],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .shadow(color: .red, radius: glowAnimation ? 10 : 5)
+                    .scaleEffect(glowAnimation ? 1.1 : 1.0)
+                    .animation(
+                        .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+                        value: glowAnimation
+                    )
+                    .onAppear { glowAnimation = true }
             } else if let speedMultiplier = dropSpeedMultiplier, speedMultiplier != 1.0 {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: speedMultiplier < 1.0 ? "tortoise.fill" : "hare.fill")
-                        .foregroundColor(speedMultiplier < 1.0 ? .green : .red)
-                        .font(.caption)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: speedMultiplier < 1.0 ? [.green, .mint] : [.red, .orange],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .font(.title3)
+                        .shadow(
+                            color: speedMultiplier < 1.0 ? .green : .red,
+                            radius: 4
+                        )
 
                     Text("\(String(format: "%.1f", speedMultiplier))x")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white.opacity(0.9))
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.white, .cyan],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .shadow(color: .cyan, radius: 2)
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.black.opacity(0.6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [.cyan, .blue, .cyan],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                )
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color.black.opacity(0.3))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(
+            ZStack {
+                // ベース背景
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.8),
+                                Color.purple.opacity(0.3),
+                                Color.black.opacity(0.8),
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+
+                // ネオンボーダー
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.cyan, .blue, .purple, .cyan],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 2
+                    )
+                    .shadow(color: .cyan, radius: 4)
+            }
+        )
     }
 }
 
-struct InfoItem: View {
+struct NeonInfoItem: View {
     let title: String
     let value: String
+    let color: Color
+    @State private var glowIntensity = false
 
     var body: some View {
-        VStack(spacing: 1) {
+        VStack(spacing: 2) {
             Text(title)
                 .font(.caption2)
-                .foregroundColor(.white.opacity(0.7))
+                .fontWeight(.bold)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [color.opacity(0.8), color],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .shadow(color: color, radius: 1)
+
             Text(value)
                 .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
+                .fontWeight(.black)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.white, color],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .shadow(color: color, radius: glowIntensity ? 3 : 1)
+                .animation(
+                    .easeInOut(duration: 1.5).repeatForever(autoreverses: true),
+                    value: glowIntensity
+                )
+        }
+        .onAppear {
+            glowIntensity = true
         }
     }
 }
 
 struct NextPieceView: View {
     let nextPiece: Polyomino?
+    @State private var glowPulse = false
 
     var body: some View {
         VStack(spacing: 8) {
-            Text("次のピース")
+            Text("NEXT")
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.8))
-
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 60, height: 60)
-                .overlay(
-                    Group {
-                        if let piece = nextPiece {
-                            NextPiecePreview(piece: piece)
-                        } else {
-                            Text("?")
-                                .font(.title)
-                                .foregroundColor(.white.opacity(0.6))
-                        }
-                    }
+                .fontWeight(.black)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.cyan, .blue],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
                 )
+                .shadow(color: .cyan, radius: 1)
+
+            ZStack {
+                // ベース背景
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.8),
+                                Color.blue.opacity(0.3),
+                                Color.black.opacity(0.8),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 60, height: 60)
+
+                // ネオンボーダー
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.cyan, .blue, .cyan],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.5
+                    )
+                    .frame(width: 60, height: 60)
+                    .shadow(color: .cyan, radius: glowPulse ? 4 : 2)
+
+                // コンテンツ
+                Group {
+                    if let piece = nextPiece {
+                        NextPiecePreview(piece: piece)
+                    } else {
+                        Text("?")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.white, .cyan],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .shadow(color: .cyan, radius: 2)
+                    }
+                }
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                glowPulse = true
+            }
         }
     }
 }
@@ -404,21 +643,63 @@ struct WaitingForPieceOverlay: View {
 struct LevelIndicator: View {
     let level: Int
     let progress: Double
+    @State private var energyPulse = false
 
     var body: some View {
         VStack(spacing: 8) {
-            Text("レベル \(level)")
+            Text("LV.\(level)")
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.8))
+                .fontWeight(.black)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.yellow, .orange],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .shadow(color: .yellow, radius: 1)
 
             VStack(spacing: 4) {
-                ProgressView(value: max(0.0, min(1.0, progress)))
-                    .tint(.yellow)
-                    .frame(height: 4)
+                ZStack(alignment: .leading) {
+                    // 背景バー
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.black.opacity(0.6))
+                        .frame(height: 6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 3)
+                                .stroke(Color.yellow.opacity(0.5), lineWidth: 1)
+                        )
+
+                    // プログレスバー
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(
+                            LinearGradient(
+                                colors: [.yellow, .orange, .red],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: CGFloat(max(0.0, min(1.0, progress))) * 50, height: 6)
+                        .shadow(color: .yellow, radius: energyPulse ? 3 : 1)
+                }
+                .frame(width: 50)
 
                 Text("\(Int(progress * 10))/10")
                     .font(.caption2)
-                    .foregroundColor(.white.opacity(0.6))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.white, .yellow],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(color: .yellow, radius: 1)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                energyPulse = true
             }
         }
     }
@@ -429,33 +710,58 @@ struct StatsView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            StatItem(
-                title: "高さ",
-                value: "\(gameState.getColumnHeights().max() ?? 0)"
+            NeonStatItem(
+                title: "HEIGHT",
+                value: "\(gameState.getColumnHeights().max() ?? 0)",
+                color: .red
             )
 
-            StatItem(
-                title: "穴",
-                value: "\(gameState.getHoles())"
+            NeonStatItem(
+                title: "HOLES",
+                value: "\(gameState.getHoles())",
+                color: .orange
             )
         }
     }
 }
 
-struct StatItem: View {
+struct NeonStatItem: View {
     let title: String
     let value: String
+    let color: Color
+    @State private var dataPulse = false
 
     var body: some View {
         VStack(spacing: 4) {
             Text(title)
                 .font(.caption2)
-                .foregroundColor(.white.opacity(0.6))
+                .fontWeight(.bold)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [color.opacity(0.8), color],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .shadow(color: color, radius: 1)
 
             Text(value)
                 .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
+                .fontWeight(.black)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.white, color],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .shadow(color: color, radius: dataPulse ? 2 : 1)
+                .scaleEffect(dataPulse ? 1.1 : 1.0)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                dataPulse = true
+            }
         }
     }
 }
@@ -538,6 +844,7 @@ struct GameButton: View {
     let icon: String
     let action: () -> Void
     let style: GameButtonStyle
+    @State private var isGlowing = false
 
     init(icon: String, action: @escaping () -> Void, style: GameButtonStyle = .primary) {
         self.icon = icon
@@ -547,34 +854,122 @@ struct GameButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(.white)
-                .frame(width: 60, height: 60)
-                .background(
-                    style == .primary ? Color.blue.opacity(0.8) : Color.gray.opacity(0.6)
-                )
-                .cornerRadius(30)
-                .shadow(radius: 4)
+            ZStack {
+                // ベース背景（より鮮やか）
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: style == .primary
+                                ? [
+                                    Color.cyan.opacity(0.9), Color.blue.opacity(0.7),
+                                    Color.purple.opacity(0.5), Color.black.opacity(0.8),
+                                ]
+                                : [
+                                    Color.purple.opacity(0.9), Color.pink.opacity(0.7),
+                                    Color.gray.opacity(0.6), Color.black.opacity(0.8),
+                                ],
+                            center: .center,
+                            startRadius: 5,
+                            endRadius: 40
+                        )
+                    )
+                    .frame(width: 60, height: 60)
+
+                // ネオンリング（二重効果）
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: style == .primary
+                                ? [.cyan, .blue, .purple, .cyan]
+                                : [.purple, .pink, .orange, .purple],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 3
+                    )
+                    .frame(width: 60, height: 60)
+                    .shadow(
+                        color: style == .primary ? .cyan : .purple,
+                        radius: isGlowing ? 12 : 6
+                    )
+                    .shadow(
+                        color: style == .primary ? .blue : .pink,
+                        radius: isGlowing ? 8 : 4
+                    )
+
+                // アイコン
+                Image(systemName: icon)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.white, style == .primary ? .cyan : .purple],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(
+                        color: style == .primary ? .cyan : .purple,
+                        radius: 2
+                    )
+            }
         }
-        .buttonStyle(PressedButtonStyle())
+        .buttonStyle(NeonButtonStyle())
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                isGlowing = true
+            }
+        }
     }
 }
 
 struct SoftDropButton: View {
     @ObservedObject var gameCore: GameCore
+    @State private var isGlowing = false
 
     var body: some View {
         Button("↓") {
             // タップ時は1回だけ下に移動
             _ = gameCore.movePiece(dx: 0, dy: 1)
         }
-        .font(.title2)
-        .foregroundColor(.white)
+        .font(.title)
+        .fontWeight(.black)
+        .foregroundStyle(
+            LinearGradient(
+                colors: [.white, .green],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
         .frame(width: 60, height: 60)
-        .background(Color.green.opacity(0.8))
-        .cornerRadius(30)
-        .shadow(radius: 4)
+        .background(
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color.green.opacity(0.8), Color.mint.opacity(0.6),
+                                Color.black.opacity(0.8),
+                            ],
+                            center: .center,
+                            startRadius: 10,
+                            endRadius: 35
+                        )
+                    )
+
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [.green, .mint, .green],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 2
+                    )
+                    .shadow(color: .green, radius: isGlowing ? 8 : 4)
+            }
+        )
+        .shadow(color: .green, radius: 2)
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in
@@ -584,14 +979,20 @@ struct SoftDropButton: View {
                     gameCore.stopSoftDrop()
                 }
         )
-        .buttonStyle(PressedButtonStyle())
+        .buttonStyle(NeonButtonStyle())
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                isGlowing = true
+            }
+        }
     }
 }
 
-struct PressedButtonStyle: ButtonStyle {
+struct NeonButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.85 : 1.0)
+            .brightness(configuration.isPressed ? 0.3 : 0.0)
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }

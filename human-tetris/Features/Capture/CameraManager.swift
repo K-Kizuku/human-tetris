@@ -162,6 +162,9 @@ class CameraManager: NSObject, ObservableObject {
                     } else {
                         connection.videoOrientation = .portrait
                     }
+
+                    // ミラーリングを手動で設定するため、自動調整を無効化
+                    connection.automaticallyAdjustsVideoMirroring = false
                     connection.isVideoMirrored = false
                 }
             } else {

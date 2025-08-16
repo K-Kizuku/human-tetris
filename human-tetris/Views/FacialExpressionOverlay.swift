@@ -16,71 +16,139 @@ struct FacialExpressionOverlay: View {
     let isARKitSupported: Bool  // ARKitサポート状況
 
     var body: some View {
-        HStack(spacing: 6) {
-            // 表情アイコン
+        HStack(spacing: 8) {
+            // 表情アイコン（ネオン効果）
             Text(expression.emoji)
-                .font(.title3)
-                .scaleEffect(isFaceDetected ? 1.1 : 1.0)
+                .font(.title2)
+                .scaleEffect(isFaceDetected ? 1.2 : 1.0)
+                .shadow(color: .white, radius: isFaceDetected ? 4 : 0)
                 .animation(.bouncy(duration: 0.3), value: isFaceDetected)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 // 上段：表情名と信頼度
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Text(expression.rawValue)
                         .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
+                        .fontWeight(.bold)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.white, .cyan],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .shadow(color: .cyan, radius: 1)
 
                     Text("\(String(format: "%.0f", confidence * 100))%")
                         .font(.caption2)
-                        .foregroundColor(confidenceColor)
+                        .fontWeight(.black)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [confidenceColor, .white],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .shadow(color: confidenceColor, radius: 2)
 
-                    // ステータスインジケーター
+                    // ステータスインジケーター（パルス効果）
                     Circle()
-                        .fill(statusColor)
-                        .frame(width: 4, height: 4)
-                        .scaleEffect(isTracking ? 1.0 : 0.6)
+                        .fill(
+                            RadialGradient(
+                                colors: [statusColor, statusColor.opacity(0.3)],
+                                center: .center,
+                                startRadius: 1,
+                                endRadius: 4
+                            )
+                        )
+                        .frame(width: 6, height: 6)
+                        .scaleEffect(isTracking ? 1.2 : 0.8)
+                        .shadow(color: statusColor, radius: isTracking ? 3 : 1)
                         .animation(
-                            .easeInOut(duration: 0.5).repeatForever(autoreverses: true),
+                            .easeInOut(duration: 0.6).repeatForever(autoreverses: true),
                             value: isTracking)
                 }
 
                 // 下段：速度情報（表示される場合のみ）
                 if let speedMultiplier = currentDropSpeedMultiplier, confidence >= 0.5 {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 4) {
                         Image(
                             systemName: speedMultiplier < 1.0
                                 ? "tortoise.fill"
                                 : speedMultiplier > 1.0 ? "hare.fill" : "equal.circle.fill"
                         )
-                        .foregroundColor(speedMultiplierColor)
-                        .font(.caption2)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: speedMultiplier < 1.0 ? [.green, .mint] : [.red, .orange],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .font(.caption)
+                        .shadow(color: speedMultiplierColor, radius: 2)
 
                         Text("\(String(format: "%.1f", speedMultiplier))x")
                             .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundColor(speedMultiplierColor)
+                            .fontWeight(.black)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [speedMultiplierColor, .white],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .shadow(color: speedMultiplierColor, radius: 1)
                     }
                 } else {
                     // モード表示（速度情報がない場合）
                     Text(isARKitSupported ? "ARKit" : "シミュレーション")
                         .font(.caption2)
-                        .foregroundColor(
-                            isARKitSupported ? .green.opacity(0.8) : .orange.opacity(0.8))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: isARKitSupported ? [.green, .mint] : [.orange, .yellow],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .shadow(
+                            color: isARKitSupported ? .green : .orange,
+                            radius: 1
+                        )
                 }
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.black.opacity(0.8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                )
+            ZStack {
+                // ベース背景
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.9),
+                                Color.purple.opacity(0.4),
+                                Color.black.opacity(0.9),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                // ネオンボーダー
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.cyan, .blue, .purple, .pink, .cyan],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.5
+                    )
+                    .shadow(color: .cyan, radius: 3)
+            }
         )
-        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
     }
 
     private var confidenceColor: Color {
