@@ -71,18 +71,50 @@ struct Polyomino: Equatable {
     }
     
     func rotated() -> Polyomino {
-        let centroid = self.centroid
+        // 改良された回転アルゴリズム：
+        // 1. 原点中心で回転
+        // 2. バウンディングボックスが最小になるよう調整
+        
         let rotatedCells = cells.map { cell in
-            let relX = Double(cell.x) - centroid.x
-            let relY = Double(cell.y) - centroid.y
-            
-            let newX = -relY + centroid.x
-            let newY = relX + centroid.y
-            
-            return (x: Int(round(newX)), y: Int(round(newY)))
+            // 原点中心での90度時計回り回転: (x,y) -> (-y,x)
+            return (x: -cell.y, y: cell.x)
         }
         
-        return Polyomino(cells: normalize(rotatedCells), rot: rot + 1)
+        // 正規化して重複を除去
+        let normalizedCells = normalize(rotatedCells)
+        let uniqueCells = removeDuplicateCells(normalizedCells)
+        
+        // セル数が保持されているかチェック
+        if uniqueCells.count != cells.count {
+            print("Warning: Cell count changed during rotation. Original: \(cells.count), New: \(uniqueCells.count)")
+            // 元のセル数を保持するためのフォールバック処理
+            return rotateWithCompactness()
+        }
+        
+        return Polyomino(cells: uniqueCells, rot: rot + 1)
+    }
+    
+    // より堅牢な回転アルゴリズム（フォールバック用）
+    private func rotateWithCompactness() -> Polyomino {
+        // セルを格子上で確実に回転させる
+        var rotatedCells: [(x: Int, y: Int)] = []
+        
+        for cell in cells {
+            let newX = -cell.y
+            let newY = cell.x
+            rotatedCells.append((x: newX, y: newY))
+        }
+        
+        // 正規化（最小座標を0,0に）
+        let normalizedCells = normalize(rotatedCells)
+        
+        // セルの数が合わない場合の検証
+        if normalizedCells.count != cells.count {
+            print("Error: Rotation failed to preserve cell count")
+            return self // 回転失敗時は元のピースを返す
+        }
+        
+        return Polyomino(cells: normalizedCells, rot: rot + 1)
     }
     
     func translated(dx: Int, dy: Int) -> Polyomino {
@@ -106,6 +138,21 @@ struct Polyomino: Equatable {
         let minY = cells.map { $0.y }.min()!
         
         return cells.map { (x: $0.x - minX, y: $0.y - minY) }
+    }
+    
+    private func removeDuplicateCells(_ cells: [(x: Int, y: Int)]) -> [(x: Int, y: Int)] {
+        var uniqueCells: [(x: Int, y: Int)] = []
+        var seen: Set<String> = []
+        
+        for cell in cells {
+            let key = "\(cell.x),\(cell.y)"
+            if !seen.contains(key) {
+                seen.insert(key)
+                uniqueCells.append(cell)
+            }
+        }
+        
+        return uniqueCells
     }
 }
 
