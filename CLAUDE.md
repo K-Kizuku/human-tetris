@@ -101,6 +101,18 @@ struct Polyomino {
 
 func bestConnectedSubset(from grid: Grid3x4) -> Polyomino?
 func spawnColumn(for grid: Grid3x4) -> Int // 重心X→0..9
+
+// 連続ゲームループ用プロトコル
+protocol GamePieceProvider {
+    func requestNextPiece(completion: @escaping (Polyomino?) -> Void)
+    func isAvailable() -> Bool
+}
+
+class PieceQueue: ObservableObject {
+    func setProvider(_ provider: GamePieceProvider)
+    func getNextPiece(completion: @escaping (Polyomino?) -> Void)
+    func preloadPieces() // 非同期実行
+}
 ```
 
 ---
@@ -225,6 +237,11 @@ let QUANTIZE_PRESET: [Difficulty: QuantizeConfig] = [
 **YOU MUST**: 変更後は **ビルド → テスト → 結果サマリ（日本語）** を自動で提示。
 **NEVER**: `Info.plist`/署名/Entitlements を無断変更。
 
+**重要な実装ノート**:
+- **非同期処理**：UIフリーズを防ぐため、重い処理は `DispatchQueue.global()` でバックグラウンド実行。
+- **デッドロック防止**：同期的な while ループやメインスレッドブロックを防ぐ。
+- **GamePieceProvider**：連続ゲームループのために必須。CaptureViewが実装しGameCoreが使用。
+
 ---
 
 ## 13. ビルド/実行/テスト（CLI）
@@ -268,3 +285,38 @@ xcodebuild test -project human-tetris.xcodeproj \
 
 - 2025-08-16: `./specification.md` 反映。Capture/量子化/探索/ヒント/難易度/スコア/性能/DoD を追記。
 - 2025-08-16: 日本語運用／iOS 18.6 前提ガードレールを確定。
+- 2025-08-16: **連続ゲームループ実装完了** - GamePieceProviderプロトコルとPieceQueueシステムによる自動ピース生成。
+- 2025-08-16: **UIフリーズ問題解決** - 非同期処理によるsetPieceProviderデッドロックの修正。
+
+## 15. 実装完了済み機能（2025-08-16現在）
+
+✅ **基本システム**
+- 10×20盤面、衝突判定、ライン消去ロジック（GameCore.swift）
+- 左右移動・回転操作・ウォールキック（GameCore.swift:132-156）
+- 可変ポリオミノ（3-6セル）対応（Polyomino.swift）
+
+✅ **カメラ・認識システム**
+- AVFoundation カメラプレビュー・フレーム取得（CameraManager.swift）
+- Vision 人物セグメンテーション・骨格推定（VisionProcessor.swift）
+- 3×4 量子化・連結成分抽出（QuantizationProcessor.swift, ShapeExtractor.swift）
+
+✅ **連続ゲームループ**
+- GamePieceProvider プロトコル（GamePieceProvider.swift:10-13）
+- PieceQueue 非同期事前生成・管理（GamePieceProvider.swift:16-91）
+- CaptureView Provider実装（CaptureView.swift:228-294）
+- GameCore 自動次ピース要求（GameCore.swift:86-114）
+
+✅ **UI/UX**
+- メイン画面（CaptureView.swift:27-155）
+- ゲーム画面（GameView.swift, GameBoardView.swift）
+- IoU・安定時間バー、プログレス表示（CaptureView.swift:83-98）
+
+✅ **重要なバグ修正**
+- setPieceProvider デッドロック解決（非同期処理導入）
+- UIフリーズ問題解決（DispatchQueue.global使用）
+- ProgressView範囲外値エラー修正
+
+🚧 **実装予定**
+- 形状多様性ボーナス/重複ペナルティ
+- シェイプクールダウン（I型スパム防止）
+- SpriteKit統合による高度なアニメーション
