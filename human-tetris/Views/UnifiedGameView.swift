@@ -33,20 +33,20 @@ struct UnifiedGameView: View, GamePieceProvider {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                VStack(spacing: 8) {
+                VStack(spacing: 4) {
                     // Top section - Camera + Countdown (中央配置)
                     HStack {
                         Spacer()
                         cameraSection(geometry: geometry)
-                            .frame(height: geometry.size.height * 0.25)
+                            .frame(height: geometry.size.height * 0.22)  // 25% -> 22%に縮小
                         Spacer()
                     }
 
                     // Bottom section - Game Board
                     gameBoardSection(geometry: geometry)
-                        .frame(height: geometry.size.height * 0.75)
+                        .frame(height: geometry.size.height * 0.78)  // 75% -> 78%に拡大
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 6)  // パディングも縮小
 
                 // Flash effect overlay
                 if showFlashEffect {
@@ -92,7 +92,7 @@ struct UnifiedGameView: View, GamePieceProvider {
     // MARK: - Camera Section
 
     private func calculateCameraWidth(for geometry: GeometryProxy) -> CGFloat {
-        let cameraHeight = geometry.size.height * 0.25
+        let cameraHeight = geometry.size.height * 0.22  // 更新された高さ比率
         let deviceAspectRatio = geometry.size.width / geometry.size.height
 
         // デバイスのアスペクト比を維持してカメラ幅を計算
@@ -175,15 +175,15 @@ struct UnifiedGameView: View, GamePieceProvider {
             )
 
             // Compact control section
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 // IoU indicator
-                HStack(spacing: 4) {
+                HStack(spacing: 2) {
                     Text("IoU:")
                         .foregroundColor(.white)
                         .font(.caption2)
                     ProgressView(value: max(0.0, min(1.0, Double(currentIoU))), total: 1.0)
                         .tint(.green)
-                        .frame(width: 40, height: 2)
+                        .frame(width: 30, height: 2)
                     Text(String(format: "%.2f", currentIoU))
                         .foregroundColor(.white)
                         .font(.caption2)
@@ -207,7 +207,7 @@ struct UnifiedGameView: View, GamePieceProvider {
                 Spacer()
 
                 // Stability indicator
-                HStack(spacing: 4) {
+                HStack(spacing: 2) {
                     Text("安定:")
                         .foregroundColor(.white)
                         .font(.caption2)
@@ -216,10 +216,11 @@ struct UnifiedGameView: View, GamePieceProvider {
                         total: 1.0
                     )
                     .tint(captureState.isStable ? .green : .orange)
-                    .frame(width: 40, height: 2)
+                    .frame(width: 30, height: 2)
                 }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 6)
+            .frame(height: 25)  // 固定高さを設定
 
             #if targetEnvironment(simulator)
                 if cameraManager.previewLayer == nil {
@@ -235,7 +236,7 @@ struct UnifiedGameView: View, GamePieceProvider {
     @ViewBuilder
     private func cellOverlay(for piece: Polyomino, geometry: GeometryProxy) -> some View {
         let cameraWidth = calculateCameraWidth(for: geometry)
-        let cameraHeight = geometry.size.height * 0.25
+        let cameraHeight = geometry.size.height * 0.22
         let cellWidth = cameraWidth / 3
         let cellHeight = cameraHeight / 4
 
@@ -284,32 +285,32 @@ struct UnifiedGameView: View, GamePieceProvider {
 
     @ViewBuilder
     private func gameBoardSection(geometry: GeometryProxy) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             // Score display - more compact for vertical layout
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text("スコア: \(gameCore.gameState.score)")
                         .foregroundColor(.white)
-                        .font(.subheadline)
+                        .font(.caption)
                     Text("ライン: \(gameCore.gameState.linesCleared)")
                         .foregroundColor(.white)
-                        .font(.caption)
+                        .font(.caption2)
                 }
 
                 Spacer()
 
-                VStack(alignment: .center, spacing: 2) {
+                VStack(alignment: .center, spacing: 1) {
                     Text("レベル: \(gameCore.gameState.level)")
                         .foregroundColor(.white)
-                        .font(.subheadline)
+                        .font(.caption)
                     Text("多様性: \(String(format: "%.1f", shapeHistoryManager.diversityScore))")
                         .foregroundColor(.white)
-                        .font(.caption)
+                        .font(.caption2)
                 }
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 2) {
+                VStack(alignment: .trailing, spacing: 1) {
                     Button(isGameActive ? "一時停止" : "再開") {
                         toggleGamePause()
                     }
@@ -321,44 +322,45 @@ struct UnifiedGameView: View, GamePieceProvider {
                     .buttonStyle(CompactButtonStyle())
                 }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 6)
+            .frame(height: 40)  // 固定高さを設定
 
-            // Game board - larger for vertical layout
+            // Game board - adjusted for better layout
             GameBoardView(
                 gameCore: gameCore,
                 targetSize: CGSize(
-                    width: geometry.size.width * 0.85, height: geometry.size.height * 0.55)
+                    width: geometry.size.width * 0.85, height: geometry.size.height * 0.45)
             )
-            .frame(maxHeight: geometry.size.height * 0.55)
+            .frame(maxHeight: geometry.size.height * 0.45)
 
-            // Game controls for vertical layout
-            VStack(spacing: 8) {
+            // Game controls for vertical layout - more compact
+            VStack(spacing: 4) {
                 // 上段：左、回転、右
-                HStack(spacing: 12) {
+                HStack(spacing: 16) {
                     Button("←") {
                         _ = gameCore.movePiece(dx: -1)
                     }
-                    .buttonStyle(ControlButtonStyle())
+                    .buttonStyle(CompactControlButtonStyle())
 
                     Button("↻") {
                         _ = gameCore.rotatePiece()
                     }
-                    .buttonStyle(ControlButtonStyle())
+                    .buttonStyle(CompactControlButtonStyle())
 
                     Button("→") {
                         _ = gameCore.movePiece(dx: 1)
                     }
-                    .buttonStyle(ControlButtonStyle())
+                    .buttonStyle(CompactControlButtonStyle())
                 }
 
                 // 下段：ソフトドロップとハードドロップ
-                HStack(spacing: 12) {
+                HStack(spacing: 16) {
                     // ソフトドロップボタン（長押し対応）
                     Button("↓") {
                         // タップ時は1回だけ下に移動
                         _ = gameCore.movePiece(dx: 0, dy: 1)
                     }
-                    .buttonStyle(SoftDropButtonStyle())
+                    .buttonStyle(CompactSoftDropButtonStyle())
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { _ in
@@ -375,10 +377,11 @@ struct UnifiedGameView: View, GamePieceProvider {
                     Button("⬇") {
                         gameCore.hardDrop()
                     }
-                    .buttonStyle(HardDropButtonStyle())
+                    .buttonStyle(CompactHardDropButtonStyle())
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, 4)
+            .frame(height: 80)  // 固定高さを設定
         }
     }
 
@@ -417,8 +420,8 @@ struct UnifiedGameView: View, GamePieceProvider {
     }
 
     private func updateROIFrame(for bounds: CGSize) {
-        // カメラセクションが上部25%を使用、デバイスのアスペクト比を維持
-        let cameraHeight = bounds.height * 0.25
+        // カメラセクションが上部22%を使用、デバイスのアスペクト比を維持
+        let cameraHeight = bounds.height * 0.22
         let deviceAspectRatio = bounds.width / bounds.height
         let cameraWidth = min(cameraHeight * deviceAspectRatio, bounds.width * 0.9)
 
@@ -659,6 +662,54 @@ extension UnifiedGameView: VisionProcessorDelegate {
 
 // MARK: - Button Styles
 
+// MARK: - Compact Button Styles for Better Layout
+
+struct CompactControlButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title3)
+            .foregroundColor(.white)
+            .frame(width: 45, height: 35)
+            .background(
+                configuration.isPressed ? Color.blue.opacity(0.8) : Color.blue.opacity(0.6)
+            )
+            .cornerRadius(6)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+struct CompactSoftDropButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title3)
+            .foregroundColor(.white)
+            .frame(width: 45, height: 35)
+            .background(
+                configuration.isPressed ? Color.green.opacity(0.8) : Color.green.opacity(0.6)
+            )
+            .cornerRadius(6)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+struct CompactHardDropButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title3)
+            .foregroundColor(.white)
+            .frame(width: 45, height: 35)
+            .background(
+                configuration.isPressed ? Color.red.opacity(0.8) : Color.red.opacity(0.6)
+            )
+            .cornerRadius(6)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+// Legacy button styles for compatibility
 struct ControlButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
