@@ -10,7 +10,6 @@ import SwiftUI
 import Vision
 
 struct CaptureView: View, GamePieceProvider {
-    @StateObject private var multiCameraManager = MultiCameraManager()
     @StateObject private var facialExpressionManager = FacialExpressionManager()
     @StateObject private var visionProcessor = VisionProcessor()
     @StateObject private var quantizationProcessor = QuantizationProcessor()
@@ -30,14 +29,13 @@ struct CaptureView: View, GamePieceProvider {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                if let previewLayer = multiCameraManager.backCameraPreviewLayer {
-                    CameraPreview(previewLayer: previewLayer)
+                if facialExpressionManager.isTracking {
+                    ARCameraPreview(pixelBuffer: .constant(facialExpressionManager.currentBackCameraFrame))
                         .onAppear {
                             setupCamera()
                             updateROIFrame(for: geometry.size)
                         }
                         .onDisappear {
-                            multiCameraManager.stopSession()
                             facialExpressionManager.stopTracking()
                         }
                         .onChange(of: geometry.size) { _, newSize in
@@ -145,7 +143,7 @@ struct CaptureView: View, GamePieceProvider {
 
                         #if targetEnvironment(simulator)
                             // シミュレータ用のテストボタン
-                            if multiCameraManager.backCameraPreviewLayer == nil {
+                            if !facialExpressionManager.isTracking {
                                 Button("テストピース生成") {
                                     generateTestPiece()
                                 }
@@ -192,15 +190,13 @@ struct CaptureView: View, GamePieceProvider {
     }
 
     private func setupCamera() {
-        multiCameraManager.delegate = self
         facialExpressionManager.delegate = self
-        multiCameraManager.requestPermission()
-
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             updateROIFrame()
         }
 
-        // 表情認識を開始
+        // ARKit統合セッションを開始（背面+前面カメラ）
         facialExpressionManager.startTracking()
     }
 
@@ -209,42 +205,17 @@ struct CaptureView: View, GamePieceProvider {
     }
 
     private func updateROIFrame() {
-        guard let previewLayer = multiCameraManager.backCameraPreviewLayer else { return }
-        updateROIFrame(for: previewLayer.bounds.size)
+        // ARKit統合モードでは画面サイズベースでROI計算
+        updateROIFrame(for: UIScreen.main.bounds.size)
     }
 
     private func updateROIFrame(for bounds: CGSize) {
         print("CaptureView: updateROIFrame called with bounds \(bounds)")
 
-        // カメラプレビューレイヤーの実際のサイズを取得
-        guard let previewLayer = multiCameraManager.backCameraPreviewLayer else {
-            print("CaptureView: Preview layer not available, using screen bounds")
-            updateROIFrameForScreenBounds(bounds)
-            return
-        }
-
-        // プレビューレイヤーのフレームを更新
-        DispatchQueue.main.async {
-            previewLayer.frame = CGRect(origin: .zero, size: bounds)
-        }
-
-        // カメラの実際の映像サイズとプレビューレイヤーのサイズを考慮
-        let videoGravity = previewLayer.videoGravity
+        // ARKit統合モードでは画面サイズ基準でROI計算
         let previewLayerBounds = CGRect(origin: .zero, size: bounds)
 
-        // カメラの解像度を取得（VGA 640x480を使用）
-        let cameraResolution = CGSize(width: 640, height: 480)
-
-        // プレビューレイヤー内での実際の映像表示領域を計算
-        let videoRect = calculateVideoRect(
-            for: cameraResolution,
-            in: previewLayerBounds,
-            videoGravity: videoGravity
-        )
-
-        print("CaptureView: Video rect in preview layer: \(videoRect)")
-
-        // 4x3アスペクト比を維持しつつ映像領域内に配置
+        // 4x3アスペクト比を維持
         let targetAspectRatio: CGFloat = 3.0 / 4.0  // width/height = 3/4
 
         // UIコントロール用のマージンを考慮
@@ -252,25 +223,25 @@ struct CaptureView: View, GamePieceProvider {
         let bottomMargin: CGFloat = 200
         let sideMargin: CGFloat = 20
 
-        // 映像表示領域内での利用可能領域を計算
-        let availableVideoWidth = max(0, videoRect.width - (sideMargin * 2))
-        let availableVideoHeight = max(0, videoRect.height - topMargin - bottomMargin)
+        // 利用可能領域を計算
+        let availableWidth = max(0, bounds.width - (sideMargin * 2))
+        let availableHeight = max(0, bounds.height - topMargin - bottomMargin)
 
         var frameWidth: CGFloat
         var frameHeight: CGFloat
 
-        // アスペクト比を保持しながら映像領域内で最大化
-        if availableVideoWidth / availableVideoHeight > targetAspectRatio {
-            frameHeight = availableVideoHeight
+        // アスペクト比を保持しながら最大化
+        if availableWidth / availableHeight > targetAspectRatio {
+            frameHeight = availableHeight
             frameWidth = frameHeight * targetAspectRatio
         } else {
-            frameWidth = availableVideoWidth
+            frameWidth = availableWidth
             frameHeight = frameWidth / targetAspectRatio
         }
 
-        // 映像領域の中央に配置
-        let centerX = videoRect.midX
-        let centerY = videoRect.minY + topMargin + (availableVideoHeight / 2)
+        // 画面中央に配置
+        let centerX = bounds.width / 2
+        let centerY = topMargin + (availableHeight / 2)
 
         roiFrame = CGRect(
             x: centerX - (frameWidth / 2),
@@ -282,95 +253,10 @@ struct CaptureView: View, GamePieceProvider {
         // VisionProcessorにROI情報を更新
         visionProcessor.updateROI(frame: roiFrame, previewBounds: previewLayerBounds)
 
-        print("CaptureView: ROI frame set to \(roiFrame) within video rect \(videoRect)")
+        print("CaptureView: ROI frame set to \(roiFrame) for ARKit unified mode")
     }
 
-    private func updateROIFrameForScreenBounds(_ bounds: CGSize) {
-        // フォールバック：プレビューレイヤーが利用できない場合
-        let targetAspectRatio: CGFloat = 3.0 / 4.0
-        let topMargin: CGFloat = 100
-        let bottomMargin: CGFloat = 200
-        let sideMargin: CGFloat = 20
-
-        let availableWidth = bounds.width - (sideMargin * 2)
-        let availableHeight = bounds.height - topMargin - bottomMargin
-
-        var frameWidth: CGFloat
-        var frameHeight: CGFloat
-
-        if availableWidth / availableHeight > targetAspectRatio {
-            frameHeight = availableHeight
-            frameWidth = frameHeight * targetAspectRatio
-        } else {
-            frameWidth = availableWidth
-            frameHeight = frameWidth / targetAspectRatio
-        }
-
-        roiFrame = CGRect(
-            x: (bounds.width - frameWidth) / 2,
-            y: topMargin + (availableHeight - frameHeight) / 2,
-            width: frameWidth,
-            height: frameHeight
-        )
-
-        // VisionProcessorにROI情報を更新（フォールバック用）
-        visionProcessor.updateROI(
-            frame: roiFrame, previewBounds: CGRect(origin: .zero, size: bounds))
-    }
-
-    private func calculateVideoRect(
-        for videoSize: CGSize, in layerBounds: CGRect, videoGravity: AVLayerVideoGravity
-    ) -> CGRect {
-        let videoAspectRatio = videoSize.width / videoSize.height
-        let layerAspectRatio = layerBounds.width / layerBounds.height
-
-        switch videoGravity {
-        case .resizeAspectFill:
-            if videoAspectRatio > layerAspectRatio {
-                // 映像の方が横長 - 高さを合わせて幅をクロップ
-                let scaledWidth = layerBounds.height * videoAspectRatio
-                return CGRect(
-                    x: (layerBounds.width - scaledWidth) / 2,
-                    y: 0,
-                    width: scaledWidth,
-                    height: layerBounds.height
-                )
-            } else {
-                // 映像の方が縦長 - 幅を合わせて高さをクロップ
-                let scaledHeight = layerBounds.width / videoAspectRatio
-                return CGRect(
-                    x: 0,
-                    y: (layerBounds.height - scaledHeight) / 2,
-                    width: layerBounds.width,
-                    height: scaledHeight
-                )
-            }
-        case .resizeAspect:
-            if videoAspectRatio > layerAspectRatio {
-                // 映像の方が横長 - 幅を合わせて高さを調整
-                let scaledHeight = layerBounds.width / videoAspectRatio
-                return CGRect(
-                    x: 0,
-                    y: (layerBounds.height - scaledHeight) / 2,
-                    width: layerBounds.width,
-                    height: scaledHeight
-                )
-            } else {
-                // 映像の方が縦長 - 高さを合わせて幅を調整
-                let scaledWidth = layerBounds.height * videoAspectRatio
-                return CGRect(
-                    x: (layerBounds.width - scaledWidth) / 2,
-                    y: 0,
-                    width: scaledWidth,
-                    height: layerBounds.height
-                )
-            }
-        case .resize:
-            return layerBounds
-        default:
-            return layerBounds
-        }
-    }
+    // ARKit統合モードでは不要になったメソッドを削除
 
     private func confirmPiece() {
         print("CaptureView: confirmPiece() called")
@@ -445,7 +331,7 @@ struct CaptureView: View, GamePieceProvider {
     }
 
     func isAvailable() -> Bool {
-        return visionProcessor.detectionEnabled && multiCameraManager.isSessionRunning
+        return visionProcessor.detectionEnabled && facialExpressionManager.isTracking
     }
 
     private func timeoutPieceRequest() {
@@ -471,18 +357,16 @@ struct CaptureView: View, GamePieceProvider {
     }
 
     private func stopProcessing() {
-        print("CaptureView: Stopping camera and vision processing")
+        print("CaptureView: Stopping ARKit session and vision processing")
         // Vision処理のみ停止、UIの状態は変更しない
         if visionProcessor.detectionEnabled {
             visionProcessor.toggleDetection()
         }
-        multiCameraManager.stopSession()
         facialExpressionManager.stopTracking()
     }
 
     private func resumeProcessing() {
-        print("CaptureView: Resuming camera and vision processing")
-        multiCameraManager.startSession()
+        print("CaptureView: Resuming ARKit session and vision processing")
         facialExpressionManager.startTracking()
         // Vision処理を再開
         if !visionProcessor.detectionEnabled {
@@ -531,27 +415,7 @@ struct CaptureView: View, GamePieceProvider {
     }
 }
 
-// MARK: - MultiCameraManagerDelegate
-
-extension CaptureView: MultiCameraManagerDelegate {
-    func multiCameraManager(
-        _ manager: MultiCameraManager, didOutputBackCamera pixelBuffer: CVPixelBuffer
-    ) {
-        // 背面カメラの映像をVision処理に送る（ポーズ検出用）
-        visionProcessor.processFrame(pixelBuffer)
-    }
-
-    func multiCameraManager(
-        _ manager: MultiCameraManager, didOutputFrontCamera pixelBuffer: CVPixelBuffer
-    ) {
-        // 前面カメラの映像は表情認識で使用（ARKitが自動処理）
-        // 必要に応じて追加の処理をここに実装
-    }
-
-    func multiCameraManager(_ manager: MultiCameraManager, didEncounterError error: Error) {
-        print("Multi-camera error: \(error)")
-    }
-}
+// MultiCameraManagerDelegate は削除 - ARKit一本化により不要
 
 // MARK: - FacialExpressionManagerDelegate
 
@@ -571,6 +435,12 @@ extension CaptureView: FacialExpressionManagerDelegate {
     func facialExpressionManager(_ manager: FacialExpressionManager, didEncounterError error: Error)
     {
         print("Facial expression error: \(error)")
+    }
+    
+    func facialExpressionManager(
+        _ manager: FacialExpressionManager, didOutputBackCameraFrame pixelBuffer: CVPixelBuffer
+    ) {
+        // CaptureViewでは背面カメラフレームは不要（表情認識のみ使用）
     }
 }
 

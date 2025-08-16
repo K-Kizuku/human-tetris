@@ -262,6 +262,12 @@ extension GameView: FacialExpressionManagerDelegate {
     {
         print("GameView: Facial expression error: \(error)")
     }
+    
+    func facialExpressionManager(
+        _ manager: FacialExpressionManager, didOutputBackCameraFrame pixelBuffer: CVPixelBuffer
+    ) {
+        // GameViewでは背面カメラフレームは不要（表情認識のみ使用）
+    }
 }
 
 struct GameInfoBar: View {

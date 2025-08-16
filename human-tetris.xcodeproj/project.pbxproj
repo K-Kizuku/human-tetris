@@ -9,7 +9,8 @@
 /* Begin PBXBuildFile section */
 		ED2A1FEC2E4FE40200596C91 /* Inject in Frameworks */ = {isa = PBXBuildFile; productRef = ED2A1FEB2E4FE40200596C91 /* Inject */; };
 		ED2A20732E50EDC300596C91 /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ED2A20712E50EDAF00596C91 /* ARKit.framework */; };
-
+		ED3D2CF52E512F670089FABB /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = ED3D2CF42E512F670089FABB /* Launch Screen.storyboard */; };
+		ED3D2CF72E5130340089FABB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ED3D2CF62E5130340089FABB /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,14 +30,13 @@
 		};
 /* End PBXContainerItemProxy section */
 
-/* Begin PBXCopyFilesBuildPhase section */
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
 		ED2A1FBD2E4FBEE000596C91 /* human-tetris.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "human-tetris.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED2A1FCC2E4FBEE100596C91 /* human-tetrisTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "human-tetrisTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED2A1FD62E4FBEE100596C91 /* human-tetrisUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "human-tetrisUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED2A20712E50EDAF00596C91 /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
+		ED3D2CF42E512F670089FABB /* Launch Screen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = "Launch Screen.storyboard"; sourceTree = "<group>"; };
+		ED3D2CF62E5130340089FABB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -87,6 +87,8 @@
 		ED2A1FB42E4FBEDF00596C91 = {
 			isa = PBXGroup;
 			children = (
+				ED3D2CF42E512F670089FABB /* Launch Screen.storyboard */,
+				ED3D2CF62E5130340089FABB /* Assets.xcassets */,
 				ED2A1FBF2E4FBEE000596C91 /* human-tetris */,
 				ED2A1FCF2E4FBEE100596C91 /* human-tetrisTests */,
 				ED2A1FD92E4FBEE100596C91 /* human-tetrisUITests */,
@@ -237,6 +239,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ED3D2CF52E512F670089FABB /* Launch Screen.storyboard in Resources */,
+				ED3D2CF72E5130340089FABB /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -418,16 +422,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y2HVB22KBA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "ギラリス";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.action-games";
 				INFOPLIST_KEY_NSCameraUsageDescription = "このアプリは体の動きを認識してテトリスピースを生成するためにカメラを使用します。画像は端末内でのみ処理され、保存・送信されません。";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "このアプリは表情認識のためにTrueDepthカメラを使用します";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = "Launch Screen";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -448,16 +456,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y2HVB22KBA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "ギラリス";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.action-games";
 				INFOPLIST_KEY_NSCameraUsageDescription = "このアプリは体の動きを認識してテトリスピースを生成するためにカメラを使用します。画像は端末内でのみ処理され、保存・送信されません。";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "このアプリは表情認識のためにTrueDepthカメラを使用します";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = "Launch Screen";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (

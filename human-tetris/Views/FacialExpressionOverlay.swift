@@ -41,22 +41,23 @@ struct FacialExpressionOverlay: View {
                         .frame(width: 4, height: 4)
                         .scaleEffect(isTracking ? 1.0 : 0.6)
                         .animation(
-                            .easeInOut(duration: 0.5).repeatForever(autoreverses: true),
+                            .easeInOut(duration: 0.3).repeatForever(autoreverses: true),
                             value: isTracking)
                 }
 
                 // 下段：速度情報（表示される場合のみ）
-                if let speedMultiplier = currentDropSpeedMultiplier, confidence >= 0.5 {
+                if let intervalMultiplier = currentDropSpeedMultiplier, confidence >= 0.3 {
+                    let actualSpeedMultiplier = 1.0 / intervalMultiplier // 間隔の逆数が実際の速度倍率
                     HStack(spacing: 3) {
                         Image(
-                            systemName: speedMultiplier < 1.0
-                                ? "tortoise.fill"
-                                : speedMultiplier > 1.0 ? "hare.fill" : "equal.circle.fill"
+                            systemName: actualSpeedMultiplier > 1.0
+                                ? "hare.fill"
+                                : actualSpeedMultiplier < 1.0 ? "tortoise.fill" : "equal.circle.fill"
                         )
                         .foregroundColor(speedMultiplierColor)
                         .font(.caption2)
 
-                        Text("\(String(format: "%.1f", speedMultiplier))x")
+                        Text("\(String(format: "%.1f", actualSpeedMultiplier))x")
                             .font(.caption2)
                             .fontWeight(.medium)
                             .foregroundColor(speedMultiplierColor)
@@ -115,9 +116,10 @@ struct FacialExpressionOverlay: View {
     }
 
     private var speedMultiplierColor: Color {
-        guard let speedMultiplier = currentDropSpeedMultiplier else { return .white }
+        guard let intervalMultiplier = currentDropSpeedMultiplier else { return .white }
+        let actualSpeedMultiplier = 1.0 / intervalMultiplier
 
-        switch speedMultiplier {
+        switch actualSpeedMultiplier {
         case ..<1.0:
             return .green  // 遅い（ポジティブ）
         case 1.0:
@@ -138,7 +140,7 @@ struct FacialExpressionOverlay: View {
                 confidence: 0.85,
                 isFaceDetected: true,
                 isTracking: true,
-                currentDropSpeedMultiplier: 0.8,
+                currentDropSpeedMultiplier: 1.25,  // 間隔倍率（実速度0.8x）
                 isARKitSupported: true
             )
 
@@ -147,7 +149,7 @@ struct FacialExpressionOverlay: View {
                 confidence: 0.3,
                 isFaceDetected: false,
                 isTracking: true,
-                currentDropSpeedMultiplier: 1.0,
+                currentDropSpeedMultiplier: 1.0,  // 間隔倍率（実速度1.0x）
                 isARKitSupported: false
             )
 
@@ -156,7 +158,7 @@ struct FacialExpressionOverlay: View {
                 confidence: 0.9,
                 isFaceDetected: true,
                 isTracking: true,
-                currentDropSpeedMultiplier: 1.5,
+                currentDropSpeedMultiplier: 0.67,  // 間隔倍率（実速度1.5x）
                 isARKitSupported: true
             )
         }

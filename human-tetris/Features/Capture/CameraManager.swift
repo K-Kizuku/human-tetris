@@ -160,7 +160,7 @@ class CameraManager: NSObject, ObservableObject {
                     if #available(iOS 17.0, *) {
                         connection.videoRotationAngle = 90.0  // portrait = 90度回転
                     } else {
-                        connection.videoOrientation = .portrait
+                        connection.videoOrientation = .portrait // 逆向きになる(表示がおかしい)
                     }
                     connection.isVideoMirrored = false
                 }

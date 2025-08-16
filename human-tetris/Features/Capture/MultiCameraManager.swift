@@ -12,8 +12,6 @@ import SwiftUI
 protocol MultiCameraManagerDelegate {
     func multiCameraManager(
         _ manager: MultiCameraManager, didOutputBackCamera pixelBuffer: CVPixelBuffer)
-    func multiCameraManager(
-        _ manager: MultiCameraManager, didOutputFrontCamera pixelBuffer: CVPixelBuffer)
     func multiCameraManager(_ manager: MultiCameraManager, didEncounterError error: Error)
 }
 
@@ -21,21 +19,20 @@ class MultiCameraManager: NSObject, ObservableObject {
     @Published var isSessionRunning = false
     @Published var permissionGranted = false
     @Published var backCameraPreviewLayer: AVCaptureVideoPreviewLayer?
-    @Published var frontCameraPreviewLayer: AVCaptureVideoPreviewLayer?
+    // 前面カメラのプレビューはARKitが管理
     @Published var isMultiCamSupported = false
 
     var delegate: MultiCameraManagerDelegate?
 
-    private var multiCamSession: AVCaptureMultiCamSession?
-    private let sessionQueue = DispatchQueue(label: "multi.camera.session.queue")
+    private var captureSession: AVCaptureSession?
+    // 背面カメラを最高優先度で実行して30fps維持
+    private let sessionQueue = DispatchQueue(label: "multi.camera.session.queue", qos: .userInteractive)
 
     // 背面カメラ関連
     private var backCameraDeviceInput: AVCaptureDeviceInput?
     private var backCameraVideoDataOutput: AVCaptureVideoDataOutput?
 
-    // 前面カメラ関連
-    private var frontCameraDeviceInput: AVCaptureDeviceInput?
-    private var frontCameraVideoDataOutput: AVCaptureVideoDataOutput?
+    // 前面カメラはARKitが管理するため削除
 
     override init() {
         super.init()
@@ -102,7 +99,10 @@ class MultiCameraManager: NSObject, ObservableObject {
     }
 
     private func configureMultiCamSession() {
-        let session = AVCaptureMultiCamSession()
+        // ARKitが前面カメラを使用するため、背面カメラのみを使用
+        print("MultiCameraManager: Configuring back camera only (ARKit handles front camera)")
+        
+        let session = AVCaptureSession()
         session.beginConfiguration()
 
         // セッションプリセットを設定
@@ -112,39 +112,35 @@ class MultiCameraManager: NSObject, ObservableObject {
             session.sessionPreset = .vga640x480
         }
 
-        // 背面カメラの設定
+        // 背面カメラの設定のみ
         if let backCamera = AVCaptureDevice.default(
             .builtInWideAngleCamera, for: .video, position: .back)
         {
             do {
                 let backCameraInput = try AVCaptureDeviceInput(device: backCamera)
                 if session.canAddInput(backCameraInput) {
-                    session.addInputWithNoConnections(backCameraInput)
+                    session.addInput(backCameraInput)
                     self.backCameraDeviceInput = backCameraInput
 
-                    // 背面カメラの出力設定
+                    // 背面カメラの出力設定（30fps維持のため最高優先度）
                     let backCameraOutput = AVCaptureVideoDataOutput()
                     backCameraOutput.setSampleBufferDelegate(
-                        self, queue: DispatchQueue(label: "back.camera.output.queue"))
+                        self, queue: DispatchQueue(label: "back.camera.output.queue", qos: .userInteractive))
                     backCameraOutput.videoSettings = [
                         kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
                     ]
-                    backCameraOutput.alwaysDiscardsLateVideoFrames = true
+                    backCameraOutput.alwaysDiscardsLateVideoFrames = false  // フレーム破棄を無効化して30fps確保
 
                     if session.canAddOutput(backCameraOutput) {
-                        session.addOutputWithNoConnections(backCameraOutput)
+                        session.addOutput(backCameraOutput)
                         self.backCameraVideoDataOutput = backCameraOutput
 
-                        // 背面カメラの接続を作成
-                        let backCameraConnection = AVCaptureConnection(
-                            inputPorts: backCameraInput.ports, output: backCameraOutput)
-                        if session.canAddConnection(backCameraConnection) {
-                            session.addConnection(backCameraConnection)
-
+                        // 背面カメラの接続設定
+                        if let connection = backCameraOutput.connection(with: .video) {
                             if #available(iOS 17.0, *) {
-                                backCameraConnection.videoRotationAngle = 90.0
+                                connection.videoRotationAngle = 90.0
                             } else {
-                                backCameraConnection.videoOrientation = .portrait
+                                connection.videoOrientation = .portrait
                             }
                         }
                     }
@@ -154,76 +150,16 @@ class MultiCameraManager: NSObject, ObservableObject {
             }
         }
 
-        // 前面カメラの設定
-        if let frontCamera = AVCaptureDevice.default(
-            .builtInWideAngleCamera, for: .video, position: .front)
-        {
-            do {
-                let frontCameraInput = try AVCaptureDeviceInput(device: frontCamera)
-                if session.canAddInput(frontCameraInput) {
-                    session.addInputWithNoConnections(frontCameraInput)
-                    self.frontCameraDeviceInput = frontCameraInput
-
-                    // 前面カメラの出力設定
-                    let frontCameraOutput = AVCaptureVideoDataOutput()
-                    frontCameraOutput.setSampleBufferDelegate(
-                        self, queue: DispatchQueue(label: "front.camera.output.queue"))
-                    frontCameraOutput.videoSettings = [
-                        kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-                    ]
-                    frontCameraOutput.alwaysDiscardsLateVideoFrames = true
-
-                    if session.canAddOutput(frontCameraOutput) {
-                        session.addOutputWithNoConnections(frontCameraOutput)
-                        self.frontCameraVideoDataOutput = frontCameraOutput
-
-                        // 前面カメラの接続を作成
-                        let frontCameraConnection = AVCaptureConnection(
-                            inputPorts: frontCameraInput.ports, output: frontCameraOutput)
-                        if session.canAddConnection(frontCameraConnection) {
-                            session.addConnection(frontCameraConnection)
-
-                            if #available(iOS 17.0, *) {
-                                frontCameraConnection.videoRotationAngle = 90.0
-                            } else {
-                                frontCameraConnection.videoOrientation = .portrait
-                            }
-                            frontCameraConnection.isVideoMirrored = true
-                        }
-                    }
-                }
-            } catch {
-                print("MultiCameraManager: Error setting up front camera: \(error)")
-            }
-        }
-
         session.commitConfiguration()
-        self.multiCamSession = session
+        
+        // セッションを保存
+        self.captureSession = session
 
-        // プレビューレイヤーの作成
+        // 背面カメラのプレビューレイヤーのみ作成
         DispatchQueue.main.async {
-            if let backCameraInput = self.backCameraDeviceInput {
-                let backPreviewLayer = AVCaptureVideoPreviewLayer(sessionWithNoConnection: session)
-                let backPreviewConnection = AVCaptureConnection(
-                    inputPort: backCameraInput.ports.first!, videoPreviewLayer: backPreviewLayer)
-                if session.canAddConnection(backPreviewConnection) {
-                    session.addConnection(backPreviewConnection)
-                    backPreviewLayer.videoGravity = .resizeAspectFill
-                    self.backCameraPreviewLayer = backPreviewLayer
-                }
-            }
-
-            if let frontCameraInput = self.frontCameraDeviceInput {
-                let frontPreviewLayer = AVCaptureVideoPreviewLayer(sessionWithNoConnection: session)
-                let frontPreviewConnection = AVCaptureConnection(
-                    inputPort: frontCameraInput.ports.first!, videoPreviewLayer: frontPreviewLayer)
-                if session.canAddConnection(frontPreviewConnection) {
-                    session.addConnection(frontPreviewConnection)
-                    frontPreviewLayer.videoGravity = .resizeAspectFill
-                    frontPreviewConnection.isVideoMirrored = true
-                    self.frontCameraPreviewLayer = frontPreviewLayer
-                }
-            }
+            let backPreviewLayer = AVCaptureVideoPreviewLayer(session: session)
+            backPreviewLayer.videoGravity = .resizeAspectFill
+            self.backCameraPreviewLayer = backPreviewLayer
         }
     }
 
@@ -252,11 +188,11 @@ class MultiCameraManager: NSObject, ObservableObject {
 
                     let backCameraOutput = AVCaptureVideoDataOutput()
                     backCameraOutput.setSampleBufferDelegate(
-                        self, queue: DispatchQueue(label: "back.camera.output.queue"))
+                        self, queue: DispatchQueue(label: "back.camera.output.queue", qos: .userInteractive))
                     backCameraOutput.videoSettings = [
                         kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
                     ]
-                    backCameraOutput.alwaysDiscardsLateVideoFrames = true
+                    backCameraOutput.alwaysDiscardsLateVideoFrames = false  // フレーム破棄を無効化して30fps確保
 
                     if session.canAddOutput(backCameraOutput) {
                         session.addOutput(backCameraOutput)
@@ -278,8 +214,8 @@ class MultiCameraManager: NSObject, ObservableObject {
 
         session.commitConfiguration()
 
-        // 通常のセッションをマルチカメラセッションとして扱う
-        self.multiCamSession = session as? AVCaptureMultiCamSession
+        // セッションを保存
+        self.captureSession = session
 
         DispatchQueue.main.async {
             let backPreviewLayer = AVCaptureVideoPreviewLayer(session: session)
@@ -290,28 +226,37 @@ class MultiCameraManager: NSObject, ObservableObject {
 
     func startSession() {
         sessionQueue.async { [weak self] in
-            guard let self = self, let session = self.multiCamSession, !session.isRunning else {
+            guard let self = self, let session = self.captureSession, !session.isRunning else {
                 return
             }
 
+            print("MultiCameraManager: Starting capture session with high priority for 30fps")
             session.startRunning()
 
             DispatchQueue.main.async {
                 self.isSessionRunning = session.isRunning
+                print("MultiCameraManager: Session running: \(self.isSessionRunning)")
+                
+                // 背面カメラが安定したことを通知
+                if self.isSessionRunning {
+                    print("MultiCameraManager: Back camera session established, ready for facial expression tracking")
+                }
             }
         }
     }
 
     func stopSession() {
         sessionQueue.async { [weak self] in
-            guard let self = self, let session = self.multiCamSession, session.isRunning else {
+            guard let self = self, let session = self.captureSession, session.isRunning else {
                 return
             }
 
+            print("MultiCameraManager: Stopping capture session")
             session.stopRunning()
 
             DispatchQueue.main.async {
                 self.isSessionRunning = false
+                print("MultiCameraManager: Session stopped")
             }
         }
     }
@@ -326,11 +271,9 @@ extension MultiCameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     ) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
-        // どのカメラからの出力かを判定
+        // 背面カメラからの出力のみ
         if output == backCameraVideoDataOutput {
             delegate?.multiCameraManager(self, didOutputBackCamera: pixelBuffer)
-        } else if output == frontCameraVideoDataOutput {
-            delegate?.multiCameraManager(self, didOutputFrontCamera: pixelBuffer)
         }
     }
 
@@ -338,8 +281,6 @@ extension MultiCameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         _ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
-        print(
-            "MultiCameraManager: Frame dropped from \(output == backCameraVideoDataOutput ? "back" : "front") camera"
-        )
+        print("MultiCameraManager: Frame dropped from back camera")
     }
 }

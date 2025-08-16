@@ -10,7 +10,8 @@ import SwiftUI
 import Vision
 
 struct UnifiedGameView: View, GamePieceProvider {
-    @StateObject private var cameraManager = CameraManager()
+    // ARKit一本化: MultiCameraManagerは不要
+    @StateObject private var facialExpressionManager = FacialExpressionManager()
     @StateObject private var visionProcessor = VisionProcessor()
     @StateObject private var quantizationProcessor = QuantizationProcessor()
     @StateObject private var shapeExtractor = ShapeExtractor()
@@ -109,20 +110,19 @@ struct UnifiedGameView: View, GamePieceProvider {
         VStack(spacing: 4) {
             // Camera and overlays
             ZStack {
-                // Camera preview with device aspect ratio
-                if let previewLayer = cameraManager.previewLayer {
-                    CameraPreview(previewLayer: previewLayer)
+                // ARKit unified camera preview - 実際の背面カメラ映像を表示
+                if facialExpressionManager.isTracking {
+                    ARCameraPreview(pixelBuffer: .constant(facialExpressionManager.currentBackCameraFrame))
                         .aspectRatio(geometry.size.width / geometry.size.height, contentMode: .fill)
                         .clipped()
                         .onAppear {
-                            setupCamera()
                             updateROIFrame(for: geometry.size)
                         }
                         .onChange(of: geometry.size) { _, newSize in
                             updateROIFrame(for: newSize)
                         }
                 } else {
-                    // Camera unavailable fallback
+                    // ARKit unavailable fallback
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
                         .aspectRatio(geometry.size.width / geometry.size.height, contentMode: .fill)
@@ -132,13 +132,16 @@ struct UnifiedGameView: View, GamePieceProvider {
                                 Image(systemName: "camera.fill")
                                     .font(.system(size: 20))
                                     .foregroundColor(.white.opacity(0.7))
-                                Text("カメラ未対応")
+                                Text("ARKit未対応")
                                     .font(.caption2)
                                     .foregroundColor(.white)
+                                Text("ARKitが利用できません")
+                                    .font(.caption2)
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .multilineTextAlignment(.center)
                             }
                         )
                         .onAppear {
-                            setupCamera()
                             updateROIFrame(for: geometry.size)
                         }
                 }
@@ -174,19 +177,39 @@ struct UnifiedGameView: View, GamePieceProvider {
                     .stroke(Color.white.opacity(0.3), lineWidth: 1)
             )
 
+            // 表情認識オーバーレイを左上に配置
+            HStack {
+                FacialExpressionOverlay(
+                    expression: facialExpressionManager.currentExpression,
+                    confidence: facialExpressionManager.confidence,
+                    isFaceDetected: facialExpressionManager.isFaceDetected,
+                    isTracking: facialExpressionManager.isTracking,
+                    currentDropSpeedMultiplier: gameCore.currentDropSpeedMultiplier,
+                    isARKitSupported: facialExpressionManager.isARKitSupported
+                )
+                .frame(maxWidth: 150)
+                .shadow(color: .cyan, radius: 5) // ネオングロー効果
+                
+                Spacer()
+            }
+            .padding(.horizontal, 6)
+            
             // Compact control section
             HStack(spacing: 6) {
                 // IoU indicator
                 HStack(spacing: 2) {
                     Text("IoU:")
-                        .foregroundColor(.white)
+                        .foregroundColor(.cyan)
                         .font(.caption2)
+                        .shadow(color: .cyan, radius: 2) // ネオングロー
                     ProgressView(value: max(0.0, min(1.0, Double(currentIoU))), total: 1.0)
                         .tint(.green)
                         .frame(width: 30, height: 2)
+                        .shadow(color: .green, radius: 3) // ネオングロー
                     Text(String(format: "%.2f", currentIoU))
-                        .foregroundColor(.white)
+                        .foregroundColor(.cyan)
                         .font(.caption2)
+                        .shadow(color: .cyan, radius: 2) // ネオングロー
                 }
 
                 Spacer()
@@ -209,21 +232,23 @@ struct UnifiedGameView: View, GamePieceProvider {
                 // Stability indicator
                 HStack(spacing: 2) {
                     Text("安定:")
-                        .foregroundColor(.white)
+                        .foregroundColor(.purple)
                         .font(.caption2)
+                        .shadow(color: .purple, radius: 2) // ネオングロー
                     ProgressView(
                         value: max(0.0, min(1.0, Double(captureState.stableMs) / 1000.0)),
                         total: 1.0
                     )
                     .tint(captureState.isStable ? .green : .orange)
                     .frame(width: 30, height: 2)
+                    .shadow(color: captureState.isStable ? .green : .orange, radius: 3) // ネオングロー
                 }
             }
             .padding(.horizontal, 6)
             .frame(height: 25)  // 固定高さを設定
 
             #if targetEnvironment(simulator)
-                if cameraManager.previewLayer == nil {
+                if !facialExpressionManager.isTracking {
                     Button("テスト") {
                         generateTestPiece()
                     }
@@ -290,22 +315,26 @@ struct UnifiedGameView: View, GamePieceProvider {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("スコア: \(gameCore.gameState.score)")
-                        .foregroundColor(.white)
+                        .foregroundColor(.yellow)
                         .font(.caption)
+                        .shadow(color: .yellow, radius: 3) // ネオングロー
                     Text("ライン: \(gameCore.gameState.linesCleared)")
-                        .foregroundColor(.white)
+                        .foregroundColor(.cyan)
                         .font(.caption2)
+                        .shadow(color: .cyan, radius: 2) // ネオングロー
                 }
 
                 Spacer()
 
                 VStack(alignment: .center, spacing: 1) {
                     Text("レベル: \(gameCore.gameState.level)")
-                        .foregroundColor(.white)
+                        .foregroundColor(.green)
                         .font(.caption)
+                        .shadow(color: .green, radius: 3) // ネオングロー
                     Text("多様性: \(String(format: "%.1f", shapeHistoryManager.diversityScore))")
-                        .foregroundColor(.white)
+                        .foregroundColor(.purple)
                         .font(.caption2)
+                        .shadow(color: .purple, radius: 2) // ネオングロー
                 }
 
                 Spacer()
@@ -388,11 +417,10 @@ struct UnifiedGameView: View, GamePieceProvider {
     // MARK: - Setup and Lifecycle
 
     private func setupComponents() {
-        print("UnifiedGameView: Setting up components")
+        print("UnifiedGameView: Setting up components with unified ARKit architecture")
 
-        // Setup camera
-        cameraManager.delegate = self
-        cameraManager.requestPermission()
+        // ARKit一本化: MultiCameraManagerは使用せず、ARSessionから全てのカメラフレームを取得
+        facialExpressionManager.delegate = self
 
         // Setup vision processor
         visionProcessor.delegate = self
@@ -403,20 +431,23 @@ struct UnifiedGameView: View, GamePieceProvider {
         // Setup game core
         gameCore.setPieceProvider(self)
 
+        // ARKitセッションを開始（両方のカメラを管理）
+        facialExpressionManager.startTracking()
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             updateROIFrame()
         }
     }
 
     private func cleanupComponents() {
-        print("UnifiedGameView: Cleaning up components")
-        cameraManager.stopSession()
+        print("UnifiedGameView: Cleaning up unified ARKit components")
+        facialExpressionManager.stopTracking()
         countdownManager.stopCountdown()
     }
 
     private func updateROIFrame() {
-        guard let previewLayer = cameraManager.previewLayer else { return }
-        updateROIFrame(for: previewLayer.bounds.size)
+        // ARKit一本化: プレビューレイヤーではなく画面サイズベースでROI計算
+        updateROIFrame(for: UIScreen.main.bounds.size)
     }
 
     private func updateROIFrame(for bounds: CGSize) {
@@ -508,16 +539,7 @@ struct UnifiedGameView: View, GamePieceProvider {
         showSuccessEffect()
     }
 
-    // MARK: - Camera Setup
-
-    private func setupCamera() {
-        cameraManager.delegate = self
-        cameraManager.requestPermission()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            updateROIFrame()
-        }
-    }
+    // ARKit一本化により、setupCameraメソッドは不要 - setupComponents()で統合処理
 }
 
 // MARK: - GamePieceProvider
@@ -550,7 +572,7 @@ extension UnifiedGameView {
     }
 
     func isAvailable() -> Bool {
-        return visionProcessor.detectionEnabled && cameraManager.isSessionRunning
+        return visionProcessor.detectionEnabled && facialExpressionManager.isTracking
     }
 
     func beginCountdown() {
@@ -614,15 +636,33 @@ extension UnifiedGameView: CountdownManagerDelegate {
     }
 }
 
-// MARK: - CameraManagerDelegate
+// MultiCameraManagerDelegateは削除 - ARKit一本化により不要
 
-extension UnifiedGameView: CameraManagerDelegate {
-    func cameraManager(_ manager: CameraManager, didOutput pixelBuffer: CVPixelBuffer) {
-        visionProcessor.processFrame(pixelBuffer)
+// MARK: - FacialExpressionManagerDelegate
+
+extension UnifiedGameView: FacialExpressionManagerDelegate {
+    func facialExpressionManager(
+        _ manager: FacialExpressionManager, didDetectExpression result: FacialExpressionResult
+    ) {
+        // 表情認識の結果を受け取る
+        print(
+            "UnifiedGameView: Detected expression: \(result.expression.rawValue) with confidence: \(result.confidence), speed multiplier: \(result.expression.dropSpeedMultiplier)"
+        )
+
+        // GameCoreに表情による落下速度調整を適用
+        gameCore.updateDropSpeedForExpression(result.expression, confidence: result.confidence)
     }
 
-    func cameraManager(_ manager: CameraManager, didEncounterError error: Error) {
-        print("UnifiedGameView: Camera error: \(error)")
+    func facialExpressionManager(_ manager: FacialExpressionManager, didEncounterError error: Error)
+    {
+        print("UnifiedGameView: Facial expression error: \(error)")
+    }
+    
+    func facialExpressionManager(
+        _ manager: FacialExpressionManager, didOutputBackCameraFrame pixelBuffer: CVPixelBuffer
+    ) {
+        // 統合ARSessionから背面カメラフレームを受け取ってVision処理に送る
+        visionProcessor.processFrame(pixelBuffer)
     }
 }
 
@@ -675,6 +715,7 @@ struct CompactControlButtonStyle: ButtonStyle {
             )
             .cornerRadius(6)
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .shadow(color: .blue, radius: configuration.isPressed ? 8 : 5) // ネオングロー
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
@@ -690,6 +731,7 @@ struct CompactSoftDropButtonStyle: ButtonStyle {
             )
             .cornerRadius(6)
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .shadow(color: .green, radius: configuration.isPressed ? 8 : 5) // ネオングロー
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
@@ -705,6 +747,7 @@ struct CompactHardDropButtonStyle: ButtonStyle {
             )
             .cornerRadius(6)
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .shadow(color: .red, radius: configuration.isPressed ? 8 : 5) // ネオングロー
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
@@ -769,6 +812,7 @@ struct CompactButtonStyle: ButtonStyle {
             )
             .cornerRadius(6)
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .shadow(color: .blue, radius: configuration.isPressed ? 6 : 3) // ネオングロー
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
