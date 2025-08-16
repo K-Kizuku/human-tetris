@@ -7,14 +7,18 @@
 
 import Foundation
 
+// 表情認識のためのimport（FacialExpressionを使用するため）
+// Note: 実際のプロジェクトでは適切なモジュール構造に応じて調整が必要
+
 class GameCore: ObservableObject {
     @Published var gameState: GameState
     @Published var isGameRunning: Bool = false
     @Published var dropTimer: Timer?
     @Published var waitingForNextPiece: Bool = false
     @Published var isSoftDropping: Bool = false
+    @Published var currentDropSpeedMultiplier: Double = 1.0  // 表情による落下速度倍率
 
-    private let dropInterval: TimeInterval = 1.0
+    private let baseDropInterval: TimeInterval = 1.0  // 基本落下間隔
     private let softDropInterval: TimeInterval = 0.05  // 高速落下間隔
     var pieceQueue: PieceQueue?
 
@@ -60,11 +64,14 @@ class GameCore: ObservableObject {
         // 既存のタイマーを停止
         stopDropTimer()
 
-        let interval = isSoftDropping ? softDropInterval : dropInterval
+        // 表情による速度調整を適用
+        let adjustedInterval =
+            isSoftDropping ? softDropInterval : (baseDropInterval * currentDropSpeedMultiplier)
+
         print(
-            "GameCore: Starting drop timer with interval \(interval) (soft drop: \(isSoftDropping))"
+            "GameCore: Starting drop timer with interval \(adjustedInterval) (base: \(baseDropInterval), multiplier: \(currentDropSpeedMultiplier), soft drop: \(isSoftDropping))"
         )
-        dropTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) {
+        dropTimer = Timer.scheduledTimer(withTimeInterval: adjustedInterval, repeats: true) {
             [weak self] _ in
             self?.dropCurrentPiece()
         }
@@ -277,5 +284,39 @@ class GameCore: ObservableObject {
 
     var nextPiecePreview: Polyomino? {
         return pieceQueue?.nextPiecePreview
+    }
+
+    // MARK: - 表情による落下速度調整
+
+    /// 表情に応じて落下速度を調整する
+    /// - Parameter expression: 検出された表情
+    /// - Parameter confidence: 表情認識の信頼度（0.0-1.0）
+    func updateDropSpeedForExpression(_ expression: FacialExpression, confidence: Float) {
+        // 信頼度が低い場合は速度調整を適用しない
+        guard confidence >= 0.5 else {
+            print("GameCore: Expression confidence too low (\(confidence)), keeping current speed")
+            return
+        }
+
+        let newMultiplier = expression.dropSpeedMultiplier
+
+        // 速度が変更された場合のみタイマーを再起動
+        if abs(currentDropSpeedMultiplier - newMultiplier) > 0.01 {
+            print(
+                "GameCore: Updating drop speed multiplier from \(currentDropSpeedMultiplier) to \(newMultiplier) for expression: \(expression.rawValue)"
+            )
+
+            currentDropSpeedMultiplier = newMultiplier
+
+            // ゲーム実行中の場合はタイマーを再起動して新しい速度を適用
+            if isGameRunning && !isSoftDropping {
+                startDropTimer()
+            }
+        }
+    }
+
+    /// 現在の落下間隔を取得（デバッグ用）
+    var currentDropInterval: TimeInterval {
+        return isSoftDropping ? softDropInterval : (baseDropInterval * currentDropSpeedMultiplier)
     }
 }

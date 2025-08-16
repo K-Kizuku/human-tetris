@@ -5,31 +5,32 @@
 //  Created by Kotani Kizuku on 2025/08/16.
 //
 
-import SwiftUI
 import AVFoundation
+import SwiftUI
+import UIKit
 
 struct CameraPreview: UIViewRepresentable {
     let previewLayer: AVCaptureVideoPreviewLayer
-    
+
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
         view.backgroundColor = UIColor.black
         view.clipsToBounds = true
-        
+
         // フルスクリーン映像を縮小して表示するためのビデオグラビティを設定
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
-        
+
         return view
     }
-    
+
     func updateUIView(_ uiView: UIView, context: Context) {
         // プレビューレイヤーのフレームを即座に更新
         previewLayer.frame = uiView.bounds
-        
+
         // フルスクリーン映像を適切に縮小表示
         previewLayer.videoGravity = .resizeAspectFill
-        
+
         // レイアウトが完了した後に再度確認
         DispatchQueue.main.async {
             if self.previewLayer.frame != uiView.bounds {
@@ -42,14 +43,14 @@ struct CameraPreview: UIViewRepresentable {
 struct Grid4x3Overlay: View {
     let cameraWidth: CGFloat
     let cameraHeight: CGFloat
-    
+
     var body: some View {
         ZStack {
             // カメラ全体の境界線
             Rectangle()
                 .stroke(Color.blue.opacity(0.7), lineWidth: 2)
                 .frame(width: cameraWidth, height: cameraHeight)
-            
+
             // 4x3グリッド（3列4行）
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 1) {
                 ForEach(0..<12, id: \.self) { index in
@@ -67,7 +68,7 @@ struct OccupancyHeatmap: View {
     let grid: Grid4x3
     let cameraWidth: CGFloat
     let cameraHeight: CGFloat
-    
+
     var body: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 1) {
             ForEach(0..<12, id: \.self) { index in

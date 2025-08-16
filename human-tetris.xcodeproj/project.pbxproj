@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		ED2A1FEC2E4FE40200596C91 /* Inject in Frameworks */ = {isa = PBXBuildFile; productRef = ED2A1FEB2E4FE40200596C91 /* Inject */; };
+		ED2A20732E50EDC300596C91 /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ED2A20712E50EDAF00596C91 /* ARKit.framework */; };
+
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,10 +29,14 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		ED2A1FBD2E4FBEE000596C91 /* human-tetris.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "human-tetris.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED2A1FCC2E4FBEE100596C91 /* human-tetrisTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "human-tetrisTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED2A1FD62E4FBEE100596C91 /* human-tetrisUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "human-tetrisUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		ED2A20712E50EDAF00596C91 /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -56,6 +62,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ED2A20732E50EDC300596C91 /* ARKit.framework in Frameworks */,
 				ED2A1FEC2E4FE40200596C91 /* Inject in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -101,6 +108,7 @@
 		ED2A1FEA2E4FE40200596C91 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				ED2A20712E50EDAF00596C91 /* ARKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -416,6 +424,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "このアプリは体の動きを認識してテトリスピースを生成するためにカメラを使用します。画像は端末内でのみ処理され、保存・送信されません。";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "このアプリは表情認識のためにTrueDepthカメラを使用します";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -445,6 +454,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "このアプリは体の動きを認識してテトリスピースを生成するためにカメラを使用します。画像は端末内でのみ処理され、保存・送信されません。";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "このアプリは表情認識のためにTrueDepthカメラを使用します";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

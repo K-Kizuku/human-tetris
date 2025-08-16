@@ -10,7 +10,8 @@ import SwiftUI
 import Vision
 
 struct CaptureView: View, GamePieceProvider {
-    @StateObject private var cameraManager = CameraManager()
+    @StateObject private var multiCameraManager = MultiCameraManager()
+    @StateObject private var facialExpressionManager = FacialExpressionManager()
     @StateObject private var visionProcessor = VisionProcessor()
     @StateObject private var quantizationProcessor = QuantizationProcessor()
     @StateObject private var shapeExtractor = ShapeExtractor()
@@ -29,14 +30,15 @@ struct CaptureView: View, GamePieceProvider {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                if let previewLayer = cameraManager.previewLayer {
+                if let previewLayer = multiCameraManager.backCameraPreviewLayer {
                     CameraPreview(previewLayer: previewLayer)
                         .onAppear {
                             setupCamera()
                             updateROIFrame(for: geometry.size)
                         }
                         .onDisappear {
-                            cameraManager.stopSession()
+                            multiCameraManager.stopSession()
+                            facialExpressionManager.stopTracking()
                         }
                         .onChange(of: geometry.size) { _, newSize in
                             updateROIFrame(for: newSize)
@@ -66,6 +68,23 @@ struct CaptureView: View, GamePieceProvider {
                 }
 
                 VStack {
+                    // 表情認識オーバーレイを左上に配置
+                    HStack {
+                        FacialExpressionOverlay(
+                            expression: facialExpressionManager.currentExpression,
+                            confidence: facialExpressionManager.confidence,
+                            isFaceDetected: facialExpressionManager.isFaceDetected,
+                            isTracking: facialExpressionManager.isTracking,
+                            currentDropSpeedMultiplier: gameCore.currentDropSpeedMultiplier,
+                            isARKitSupported: facialExpressionManager.isARKitSupported
+                        )
+                        .frame(maxWidth: 200)
+
+                        Spacer()
+                    }
+                    .padding(.top, 50)
+                    .padding(.horizontal, 16)
+
                     Spacer()
 
                     ZStack {
@@ -126,7 +145,7 @@ struct CaptureView: View, GamePieceProvider {
 
                         #if targetEnvironment(simulator)
                             // シミュレータ用のテストボタン
-                            if cameraManager.previewLayer == nil {
+                            if multiCameraManager.backCameraPreviewLayer == nil {
                                 Button("テストピース生成") {
                                     generateTestPiece()
                                 }
@@ -173,12 +192,16 @@ struct CaptureView: View, GamePieceProvider {
     }
 
     private func setupCamera() {
-        cameraManager.delegate = self
-        cameraManager.requestPermission()
+        multiCameraManager.delegate = self
+        facialExpressionManager.delegate = self
+        multiCameraManager.requestPermission()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             updateROIFrame()
         }
+
+        // 表情認識を開始
+        facialExpressionManager.startTracking()
     }
 
     private func setupProcessors() {
@@ -186,7 +209,7 @@ struct CaptureView: View, GamePieceProvider {
     }
 
     private func updateROIFrame() {
-        guard let previewLayer = cameraManager.previewLayer else { return }
+        guard let previewLayer = multiCameraManager.backCameraPreviewLayer else { return }
         updateROIFrame(for: previewLayer.bounds.size)
     }
 
@@ -194,7 +217,7 @@ struct CaptureView: View, GamePieceProvider {
         print("CaptureView: updateROIFrame called with bounds \(bounds)")
 
         // カメラプレビューレイヤーの実際のサイズを取得
-        guard let previewLayer = cameraManager.previewLayer else {
+        guard let previewLayer = multiCameraManager.backCameraPreviewLayer else {
             print("CaptureView: Preview layer not available, using screen bounds")
             updateROIFrameForScreenBounds(bounds)
             return
@@ -422,7 +445,7 @@ struct CaptureView: View, GamePieceProvider {
     }
 
     func isAvailable() -> Bool {
-        return visionProcessor.detectionEnabled && cameraManager.isSessionRunning
+        return visionProcessor.detectionEnabled && multiCameraManager.isSessionRunning
     }
 
     private func timeoutPieceRequest() {
@@ -453,12 +476,14 @@ struct CaptureView: View, GamePieceProvider {
         if visionProcessor.detectionEnabled {
             visionProcessor.toggleDetection()
         }
-        cameraManager.stopSession()
+        multiCameraManager.stopSession()
+        facialExpressionManager.stopTracking()
     }
 
     private func resumeProcessing() {
         print("CaptureView: Resuming camera and vision processing")
-        cameraManager.startSession()
+        multiCameraManager.startSession()
+        facialExpressionManager.startTracking()
         // Vision処理を再開
         if !visionProcessor.detectionEnabled {
             visionProcessor.toggleDetection()
@@ -506,15 +531,46 @@ struct CaptureView: View, GamePieceProvider {
     }
 }
 
-// MARK: - CameraManagerDelegate
+// MARK: - MultiCameraManagerDelegate
 
-extension CaptureView: CameraManagerDelegate {
-    func cameraManager(_ manager: CameraManager, didOutput pixelBuffer: CVPixelBuffer) {
+extension CaptureView: MultiCameraManagerDelegate {
+    func multiCameraManager(
+        _ manager: MultiCameraManager, didOutputBackCamera pixelBuffer: CVPixelBuffer
+    ) {
+        // 背面カメラの映像をVision処理に送る（ポーズ検出用）
         visionProcessor.processFrame(pixelBuffer)
     }
 
-    func cameraManager(_ manager: CameraManager, didEncounterError error: Error) {
-        print("Camera error: \(error)")
+    func multiCameraManager(
+        _ manager: MultiCameraManager, didOutputFrontCamera pixelBuffer: CVPixelBuffer
+    ) {
+        // 前面カメラの映像は表情認識で使用（ARKitが自動処理）
+        // 必要に応じて追加の処理をここに実装
+    }
+
+    func multiCameraManager(_ manager: MultiCameraManager, didEncounterError error: Error) {
+        print("Multi-camera error: \(error)")
+    }
+}
+
+// MARK: - FacialExpressionManagerDelegate
+
+extension CaptureView: FacialExpressionManagerDelegate {
+    func facialExpressionManager(
+        _ manager: FacialExpressionManager, didDetectExpression result: FacialExpressionResult
+    ) {
+        // 表情認識の結果を受け取る
+        print(
+            "CaptureView: Detected expression: \(result.expression.rawValue) with confidence: \(result.confidence), speed multiplier: \(result.expression.dropSpeedMultiplier)"
+        )
+
+        // GameCoreに表情による落下速度調整を適用
+        gameCore.updateDropSpeedForExpression(result.expression, confidence: result.confidence)
+    }
+
+    func facialExpressionManager(_ manager: FacialExpressionManager, didEncounterError error: Error)
+    {
+        print("Facial expression error: \(error)")
     }
 }
 

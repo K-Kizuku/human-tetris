@@ -19,6 +19,9 @@ struct GameView: View {
     @State private var elapsedTime: TimeInterval = 0
     @State private var gameTimer: Timer?
 
+    // 表情認識マネージャー
+    @StateObject private var facialExpressionManager = FacialExpressionManager()
+
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -26,37 +29,53 @@ struct GameView: View {
             let screenWidth = geometry.size.width
             let screenHeight = geometry.size.height
 
-            // レイアウト計算
-            let maxGameBoardWidth = min(250, screenWidth * 0.65)
-            let sideWidth = max(60, min(80, (screenWidth - maxGameBoardWidth) / 2 * 0.8))
-            let spacing = max(8, min(20, screenWidth * 0.03))
-            let gameBoardHeight = min(500, screenHeight * 0.6)
+            // レイアウト計算（高さを考慮した調整）
+            let maxGameBoardWidth = min(220, screenWidth * 0.6)
+            let sideWidth = max(50, min(70, (screenWidth - maxGameBoardWidth) / 2 * 0.8))
+            let spacing = max(6, min(16, screenWidth * 0.025))
+
+            // 利用可能な高さを計算
+            let topBarHeight: CGFloat = 50
+            let controlsHeight: CGFloat = min(120, screenHeight * 0.12)
+            let availableHeight = screenHeight - topBarHeight - controlsHeight - 40  // マージン
+            let gameBoardHeight = min(400, availableHeight * 0.8)
 
             VStack(spacing: 0) {
-                // デバッグ用ヘッダー
-                Text("TETRIS GAME")
-                    .font(.title)
-                    .foregroundColor(.white)
-                    .padding(.top)
+                // 上部：スコア表示と表情認識を統合
+                ZStack {
+                    // スコア表示（背景）
+                    GameInfoBar(
+                        score: score,
+                        lines: lines,
+                        time: elapsedTime,
+                        gameOver: gameCore.gameState.gameOver,
+                        dropSpeedMultiplier: gameCore.currentDropSpeedMultiplier
+                    )
+                    .frame(height: topBarHeight)
+                    .background(Color.black.opacity(0.3))
 
-                Text("Initial Piece: \(initialPiece.cells.count) cells")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
-                    .padding(.bottom)
-                // スコア表示
-                GameInfoBar(
-                    score: score,
-                    lines: lines,
-                    time: elapsedTime,
-                    gameOver: gameCore.gameState.gameOver
-                )
-                .frame(height: 60)
-                .background(Color.black.opacity(0.3))
+                    // 表情認識オーバーレイ（右上に配置）
+                    HStack {
+                        Spacer()
 
-                // ゲーム盤面
+                        FacialExpressionOverlay(
+                            expression: facialExpressionManager.currentExpression,
+                            confidence: facialExpressionManager.confidence,
+                            isFaceDetected: facialExpressionManager.isFaceDetected,
+                            isTracking: facialExpressionManager.isTracking,
+                            currentDropSpeedMultiplier: gameCore.currentDropSpeedMultiplier,
+                            isARKitSupported: facialExpressionManager.isARKitSupported
+                        )
+                        .frame(maxWidth: min(180, screenWidth * 0.4))
+                        .padding(.trailing, 8)
+                        .padding(.top, 4)
+                    }
+                }
+
+                // 中央：ゲーム盤面
                 HStack(spacing: spacing) {
                     // 左側：次のピース情報
-                    VStack(spacing: 12) {
+                    VStack(spacing: 8) {
                         NextPieceView(nextPiece: gameCore.nextPiecePreview)
 
                         LevelIndicator(
@@ -72,7 +91,8 @@ struct GameView: View {
                     ZStack {
                         GameBoardView(
                             gameCore: gameCore,
-                            targetSize: CGSize(width: maxGameBoardWidth, height: gameBoardHeight)
+                            targetSize: CGSize(
+                                width: maxGameBoardWidth, height: gameBoardHeight)
                         )
                         .scaleEffect(boardScale)
 
@@ -84,38 +104,33 @@ struct GameView: View {
                     .frame(width: maxGameBoardWidth, height: gameBoardHeight)
 
                     // 右側：統計情報
-                    VStack(spacing: 12) {
+                    VStack(spacing: 8) {
                         StatsView(gameState: gameCore.gameState)
 
                         Spacer()
                     }
                     .frame(width: sideWidth)
                 }
-                .padding(.horizontal, max(8, screenWidth * 0.02))
+                .padding(.horizontal, max(6, screenWidth * 0.015))
                 .frame(maxHeight: .infinity)
 
-                Spacer()
-
-                // 操作ボタン
+                // 下部：操作ボタン
                 GameControlsView(gameCore: gameCore)
-                    .padding(.horizontal, max(8, screenWidth * 0.02))
-                    .padding(.bottom, 30)
-                    .frame(height: min(150, screenHeight * 0.15))
+                    .padding(.horizontal, max(6, screenWidth * 0.015))
+                    .padding(.bottom, 20)
+                    .frame(height: controlsHeight)
 
-                // 緊急用フォールバック表示
+                // 緊急用フォールバック表示（コンパクト）
                 if gameCore.gameState.currentPiece == nil {
-                    VStack {
-                        Text("GAME INITIALIZING...")
-                            .font(.title2)
-                            .foregroundColor(.yellow)
-                        Text("Waiting for pieces...")
+                    HStack {
+                        Text("INITIALIZING...")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundColor(.yellow)
+                        Spacer()
                     }
-                    .padding()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
                     .background(Color.red.opacity(0.3))
-                    .cornerRadius(8)
-                    .padding()
                 }
             }
         }
@@ -129,9 +144,11 @@ struct GameView: View {
         )
         .onAppear {
             startGame()
+            startFacialExpressionTracking()
         }
         .onDisappear {
             gameTimer?.invalidate()
+            facialExpressionManager.stopTracking()
         }
         .onChange(of: gameCore.gameState.gameOver) { _, gameOver in
             if gameOver {
@@ -192,6 +209,12 @@ struct GameView: View {
         print("GameView: startGame() completed successfully")
     }
 
+    private func startFacialExpressionTracking() {
+        print("GameView: Starting facial expression tracking")
+        facialExpressionManager.delegate = self
+        facialExpressionManager.startTracking()
+    }
+
     private func startTimer() {
         // 既存のタイマーを停止
         gameTimer?.invalidate()
@@ -222,11 +245,31 @@ struct GameView: View {
 
 }
 
+// MARK: - FacialExpressionManagerDelegate
+
+extension GameView: FacialExpressionManagerDelegate {
+    func facialExpressionManager(
+        _ manager: FacialExpressionManager, didDetectExpression result: FacialExpressionResult
+    ) {
+        // 表情認識の結果をGameCoreに伝達
+        print(
+            "GameView: Detected expression: \(result.expression.rawValue) with confidence: \(result.confidence)"
+        )
+        gameCore.updateDropSpeedForExpression(result.expression, confidence: result.confidence)
+    }
+
+    func facialExpressionManager(_ manager: FacialExpressionManager, didEncounterError error: Error)
+    {
+        print("GameView: Facial expression error: \(error)")
+    }
+}
+
 struct GameInfoBar: View {
     let score: Int
     let lines: Int
     let time: TimeInterval
     let gameOver: Bool
+    let dropSpeedMultiplier: Double?  // 落下速度倍率（オプショナル）
 
     private var formattedTime: String {
         let minutes = Int(time) / 60
@@ -236,22 +279,37 @@ struct GameInfoBar: View {
 
     var body: some View {
         HStack {
-            InfoItem(title: "スコア", value: "\(score)")
-            Spacer()
-            InfoItem(title: "ライン", value: "\(lines)")
-            Spacer()
-            InfoItem(title: "時間", value: formattedTime)
+            // 左側：基本情報（コンパクト）
+            HStack(spacing: 16) {
+                InfoItem(title: "スコア", value: "\(score)")
+                InfoItem(title: "ライン", value: "\(lines)")
+                InfoItem(title: "時間", value: formattedTime)
+            }
 
+            Spacer()
+
+            // 右側：ゲーム状態
             if gameOver {
-                Spacer()
                 Text("GAME OVER")
-                    .font(.headline)
+                    .font(.subheadline)
                     .fontWeight(.bold)
                     .foregroundColor(.red)
                     .animation(.bouncy, value: gameOver)
+            } else if let speedMultiplier = dropSpeedMultiplier, speedMultiplier != 1.0 {
+                HStack(spacing: 4) {
+                    Image(systemName: speedMultiplier < 1.0 ? "tortoise.fill" : "hare.fill")
+                        .foregroundColor(speedMultiplier < 1.0 ? .green : .red)
+                        .font(.caption)
+
+                    Text("\(String(format: "%.1f", speedMultiplier))x")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white.opacity(0.9))
+                }
             }
         }
-        .padding()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
         .background(Color.black.opacity(0.3))
     }
 }
@@ -261,12 +319,12 @@ struct InfoItem: View {
     let value: String
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             Text(title)
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.8))
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.7))
             Text(value)
-                .font(.subheadline)
+                .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
         }
