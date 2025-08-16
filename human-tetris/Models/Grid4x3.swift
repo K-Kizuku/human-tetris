@@ -7,15 +7,15 @@
 
 import Foundation
 
-struct Grid3x4: Equatable {
+struct Grid4x3: Equatable {
     var on: [[Bool]]
     
     init() {
-        self.on = Array(repeating: Array(repeating: false, count: 4), count: 3)
+        self.on = Array(repeating: Array(repeating: false, count: 3), count: 4)
     }
     
     init(_ on: [[Bool]]) {
-        precondition(on.count == 3 && on.allSatisfy { $0.count == 4 }, "Grid3x4 must be 3 rows x 4 columns")
+        precondition(on.count == 4 && on.allSatisfy { $0.count == 3 }, "Grid4x3 must be 4 rows x 3 columns")
         self.on = on
     }
     
@@ -26,8 +26,8 @@ struct Grid3x4: Equatable {
     
     var onCells: [(row: Int, col: Int)] {
         var cells: [(row: Int, col: Int)] = []
-        for row in 0..<3 {
-            for col in 0..<4 {
+        for row in 0..<4 {
+            for col in 0..<3 {
                 if on[row][col] {
                     cells.append((row: row, col: col))
                 }
@@ -41,7 +41,8 @@ struct Grid3x4: Equatable {
         guard !onCells.isEmpty else { return 0.0 }
         
         let sumX = onCells.reduce(0.0) { $0 + Double($1.col) }
-        return sumX / Double(onCells.count) / 3.0 // Normalize to [0, 1]
+        let avgX = sumX / Double(onCells.count)
+        return avgX / 2.0 // Normalize to [0, 1] (3 columns: 0,1,2 -> max index 2, so /2.0)
     }
     
     func occupancyRate(at row: Int, col: Int) -> Float {

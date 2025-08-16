@@ -36,7 +36,7 @@ class ShapeExtractor: ObservableObject {
     private let beamWidth = GameConfig.beamWidth
     private let maxBeamWidth = GameConfig.maxBeamWidth
     
-    func extractBestShape(from grid: Grid3x4, targetSpec: TargetSpec? = nil) -> Polyomino? {
+    func extractBestShape(from grid: Grid4x3, targetSpec: TargetSpec? = nil) -> Polyomino? {
         let candidates = findCandidates(in: grid, targetSpec: targetSpec)
         
         DispatchQueue.main.async {
@@ -47,7 +47,7 @@ class ShapeExtractor: ObservableObject {
         return candidates.first?.toPolyomino()
     }
     
-    private func findCandidates(in grid: Grid3x4, targetSpec: TargetSpec?) -> [CandidateShape] {
+    private func findCandidates(in grid: Grid4x3, targetSpec: TargetSpec?) -> [CandidateShape] {
         let onCells = grid.onCells
         guard !onCells.isEmpty else { return [] }
         
@@ -61,7 +61,7 @@ class ShapeExtractor: ObservableObject {
         return allCandidates.sorted { $0.score > $1.score }
     }
     
-    private func beamSearchForSize(_ targetSize: Int, in grid: Grid3x4, onCells: [(row: Int, col: Int)], targetSpec: TargetSpec?) -> [CandidateShape] {
+    private func beamSearchForSize(_ targetSize: Int, in grid: Grid4x3, onCells: [(row: Int, col: Int)], targetSpec: TargetSpec?) -> [CandidateShape] {
         var beam: [BeamSearchNode] = []
         
         for cell in onCells {
@@ -94,7 +94,7 @@ class ShapeExtractor: ObservableObject {
         }
     }
     
-    private func expandNode(_ node: BeamSearchNode, targetSize: Int, onCells: [(row: Int, col: Int)], grid: Grid3x4) -> [BeamSearchNode] {
+    private func expandNode(_ node: BeamSearchNode, targetSize: Int, onCells: [(row: Int, col: Int)], grid: Grid4x3) -> [BeamSearchNode] {
         var expansions: [BeamSearchNode] = []
         let existingCells = Set(node.cells.map { "\($0.row),\($0.col)" })
         
@@ -105,8 +105,8 @@ class ShapeExtractor: ObservableObject {
                 let neighborKey = "\(neighbor.row),\(neighbor.col)"
                 
                 if !existingCells.contains(neighborKey) &&
-                   neighbor.row >= 0 && neighbor.row < 3 &&
-                   neighbor.col >= 0 && neighbor.col < 4 &&
+                   neighbor.row >= 0 && neighbor.row < 4 &&
+                   neighbor.col >= 0 && neighbor.col < 3 &&
                    grid[neighbor.row, neighbor.col] {
                     
                     let newCells = node.cells + [neighbor]
@@ -157,12 +157,12 @@ class ShapeExtractor: ObservableObject {
         return visited.count == cells.count
     }
     
-    private func calculateCellScore(_ cell: (row: Int, col: Int), in grid: Grid3x4) -> Float {
+    private func calculateCellScore(_ cell: (row: Int, col: Int), in grid: Grid4x3) -> Float {
         let occupancyRate = grid.occupancyRate(at: cell.row, col: cell.col)
         return scoreWeights.w1 * occupancyRate
     }
     
-    private func calculatePartialScore(cells: [(row: Int, col: Int)], grid: Grid3x4) -> Float {
+    private func calculatePartialScore(cells: [(row: Int, col: Int)], grid: Grid4x3) -> Float {
         let occupancySum = cells.reduce(0.0) { sum, cell in
             sum + grid.occupancyRate(at: cell.row, col: cell.col)
         }
@@ -172,7 +172,7 @@ class ShapeExtractor: ObservableObject {
         return scoreWeights.w1 * occupancySum + scoreWeights.w2 * connectivity
     }
     
-    private func calculateFinalScore(cells: [(row: Int, col: Int)], grid: Grid3x4, targetSpec: TargetSpec?) -> Float {
+    private func calculateFinalScore(cells: [(row: Int, col: Int)], grid: Grid4x3, targetSpec: TargetSpec?) -> Float {
         let occupancySum = cells.reduce(0.0) { sum, cell in
             sum + grid.occupancyRate(at: cell.row, col: cell.col)
         }
@@ -227,12 +227,12 @@ class ShapeExtractor: ObservableObject {
         let width = maxCol - minCol + 1
         
         let aspectRatio = Float(max(height, width)) / Float(min(height, width))
-        let threshold: Float = 1.8
+        let threshold: Float = 2.5 // 4x3グリッド対応で縦長形状を許可
         
         return max(0.0, aspectRatio - threshold)
     }
     
-    private func calculateUpperBound(startingWith cells: [(row: Int, col: Int)], targetSize: Int, onCells: [(row: Int, col: Int)], grid: Grid3x4) -> Float {
+    private func calculateUpperBound(startingWith cells: [(row: Int, col: Int)], targetSize: Int, onCells: [(row: Int, col: Int)], grid: Grid4x3) -> Float {
         let currentScore = calculatePartialScore(cells: cells, grid: grid)
         let remainingCells = targetSize - cells.count
         
@@ -252,7 +252,7 @@ class ShapeExtractor: ObservableObject {
         return currentScore + maxAdditionalScore
     }
     
-    private func calculateIoU(cells: [(row: Int, col: Int)], grid: Grid3x4) -> Float {
+    private func calculateIoU(cells: [(row: Int, col: Int)], grid: Grid4x3) -> Float {
         let cellSet = Set(cells.map { "\($0.row),\($0.col)" })
         let onCells = Set(grid.onCells.map { "\($0.row),\($0.col)" })
         

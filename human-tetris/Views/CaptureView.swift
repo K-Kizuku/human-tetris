@@ -63,7 +63,7 @@ struct CaptureView: View, GamePieceProvider {
                 Spacer()
                 
                 ZStack {
-                    Grid3x4Overlay(roiFrame: roiFrame)
+                    Grid4x3Overlay(roiFrame: roiFrame)
                     
                     OccupancyHeatmap(
                         grid: quantizationProcessor.currentGrid,
@@ -171,8 +171,28 @@ struct CaptureView: View, GamePieceProvider {
         guard let previewLayer = cameraManager.previewLayer else { return }
         
         let bounds = previewLayer.bounds
-        let frameWidth = bounds.width * 0.6
-        let frameHeight = frameWidth * 0.75
+        
+        // 4x3アスペクト比を維持しつつデバイスサイズに適応
+        let targetAspectRatio: CGFloat = 3.0 / 4.0 // width/height = 3/4
+        let maxWidthRatio: CGFloat = 0.7
+        let maxHeightRatio: CGFloat = 0.6
+        
+        let maxWidth = bounds.width * maxWidthRatio
+        let maxHeight = bounds.height * maxHeightRatio
+        
+        var frameWidth: CGFloat
+        var frameHeight: CGFloat
+        
+        // アスペクト比を保持しながら最大サイズ内に収める
+        if maxWidth / maxHeight > targetAspectRatio {
+            // 高さが制限要因
+            frameHeight = maxHeight
+            frameWidth = frameHeight * targetAspectRatio
+        } else {
+            // 幅が制限要因
+            frameWidth = maxWidth
+            frameHeight = frameWidth / targetAspectRatio
+        }
         
         roiFrame = CGRect(
             x: (bounds.width - frameWidth) / 2,

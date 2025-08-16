@@ -51,8 +51,8 @@ struct GameConfig {
     static let boardHeight = 20
     static let minPieceSize = 3
     static let maxPieceSize = 6
-    static let gridRows = 3
-    static let gridCols = 4
+    static let gridRows = 4
+    static let gridCols = 3
     
     static let beamWidth = 8
     static let maxBeamWidth = 12

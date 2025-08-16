@@ -9,8 +9,19 @@ import SwiftUI
 
 struct GameBoardView: View {
     @ObservedObject var gameCore: GameCore
+    let targetSize: CGSize
     
-    private let cellSize: CGFloat = 25
+    init(gameCore: GameCore, targetSize: CGSize = CGSize(width: 250, height: 500)) {
+        self.gameCore = gameCore
+        self.targetSize = targetSize
+    }
+    
+    private var cellSize: CGFloat {
+        let widthBasedSize = (targetSize.width - borderWidth) / CGFloat(GameState.boardWidth)
+        let heightBasedSize = (targetSize.height - borderWidth) / CGFloat(GameState.boardHeight)
+        return min(widthBasedSize, heightBasedSize, 30) // 最大30ptに制限
+    }
+    
     private let borderWidth: CGFloat = 1
     
     var body: some View {

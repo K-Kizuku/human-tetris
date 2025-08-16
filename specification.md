@@ -11,7 +11,7 @@
 
 - **他撮り・協力プレイ前提**：撮影者が端末を操作し、被写体がポーズでピースを生成。
 - **2D テトリス**：MVP で **左右移動／回転** を実装。自動落下・ライン消去あり。
-- **カメラオーバーレイ**：ライブ映像上に **3（縦）×4（横）** の計測枠を重ね、人物領域を量子化してピース化。
+- **カメラオーバーレイ**：ライブ映像上に **4（縦）×3（横）** の計測枠を重ね、人物領域を量子化してピース化。
 - **可変ポリオミノ**：ピースは **3〜6 セル** の連結形（ポリオミノ）。
 - **オンデバイス認識**：人物セグメンテーション＋骨格推定 → 量子化 → 最適連結セルの抽出。
 
@@ -23,7 +23,7 @@
 - **体験の核**：
 
   1. 被写体がポーズを取る
-  2. 画面の **3×4 枠** 内の人物領域を量子化
+  2. 画面の **4×3 枠** 内の人物領域を量子化
   3. 連結セル（3〜6）を抽出してピース化
   4. **2D の盤面**に落下 → ライン消去 → スコア
 
@@ -34,7 +34,7 @@
 ## 2. 用語と表記
 
 - **ポリオミノ**：連結正方形セルからなる図形。本作では **3〜6 セル** を対象（テトロミノはその一種）。
-- **ROI**（Region of Interest）：画面に重ねて表示する **3（縦）×4（横）** の計測枠。
+- **ROI**（Region of Interest）：画面に重ねて表示する **4（縦）×3（横）** の計測枠。
 - **IoU**（Intersection over Union）：量子化結果と候補形状の一致度（0.0–1.0）。
 - **安定時間**：確定直前の連続フレームで姿勢が維持された時間。
 
@@ -51,7 +51,7 @@
 ## 4. ゲームルール（MVP）
 
 - **盤サイズ**：10×20。
-- **ピース生成**：被写体ポーズ →3×4 量子化 → **3〜6 セルの連結集合** を抽出してピース化。初期回転は量子化結果から決定。
+- **ピース生成**：被写体ポーズ →4×3 量子化 → **3〜6 セルの連結集合** を抽出してピース化。初期回転は量子化結果から決定。
 - **出現位置**：ON セル重心の **X 座標** から初期列を決定（0〜9 列へマッピング）。
 - **操作**：
 
@@ -69,7 +69,7 @@
 ## 5. 体験フロー
 
 1. **起動**：カメラ許可／安全注意（転倒・ストレッチ禁止、第三者の写り込み配慮）。
-2. **フレーミング**：3×4 枠を重ね表示。距離・位置ガイド（「一歩下がって」「中央へ」）。
+2. **フレーミング**：4×3 枠を重ね表示。距離・位置ガイド（「一歩下がって」「中央へ」）。
 3. **ポーズ → 確定**：IoU と安定時間が閾値を満たすとピース確定。
 4. **落下・操作**：2D 盤面に出現 → 左右・回転操作 → 接地 → ライン消去演出。
 5. **継続**：次のポーズヒント表示。
@@ -81,7 +81,7 @@
 
 - **人物抽出**：`VNGeneratePersonSegmentationRequest`（中品質・フレームレート優先）。
 - **骨格補助**：`VNDetectHumanBodyPoseRequest`（姿勢妥当性・チート抑止）。
-- **3×4 量子化**：
+- **4×3 量子化**：
 
   - ROI でマスクをクロップし、各セルの **占有率**（0.0–1.0）を算出。
   - 自動閾値 `θ` で ON/OFF 化（初期 0.45、環境適応 0.35–0.55）。
@@ -139,7 +139,7 @@
 
 **UI ヒント生成**：
 
-- 3×4 ゴースト表示：目標セル ON/OFF を薄色で重ねる。
+- 4×3 ゴースト表示：目標セル ON/OFF を薄色で重ねる。
 - 骨格差分 → 短文指示：肩/肘/膝/腰の差分ベクトルから「右腕を水平に」「左に体を傾ける」「右膝を曲げる」等を自動生成。
 - 進捗メーター：`match = α*IoU + β*関節一致度` をバー表示（確定条件に直結）。
 
@@ -169,10 +169,10 @@
 ## 10. コアアルゴリズム（擬似 Swift）
 
 ```swift
-struct Grid3x4 { var on: [[Bool]] } // 3 rows x 4 cols
+struct Grid4x3 { var on: [[Bool]] } // 4 rows x 3 cols
 
-func quantize(mask: CVPixelBuffer, roi: CGRect, threshold: Float) -> Grid3x4 {
-    // ROI切り出し → 3x4へ平均縮約 → セル占有率 > threshold
+func quantize(mask: CVPixelBuffer, roi: CGRect, threshold: Float) -> Grid4x3 {
+    // ROI切り出し → 4x3へ平均縮約 → セル占有率 > threshold
 }
 
 struct Polyomino {
@@ -181,12 +181,12 @@ struct Polyomino {
     let size: Int { cells.count }
 }
 
-func bestConnectedSubset(from g: Grid3x4) -> Polyomino? {
+func bestConnectedSubset(from g: Grid4x3) -> Polyomino? {
     // 占有率の高いセルを優先し、k∈{3,4,5,6} の連結部分集合をビームサーチで抽出
     // score = w1*占有率 + w2*連結度 + w3*多様性 + w4*目標一致 - w5*細長さ罰則
 }
 
-func spawnColumn(for g: Grid3x4) -> Int {
+func spawnColumn(for g: Grid4x3) -> Int {
     // ONセルの重心X ∈ [0, 1] を 0..9 にマッピング
 }
 ```
@@ -220,7 +220,7 @@ func spawnColumn(for g: Grid3x4) -> Int {
 ## 14. 画面と遷移
 
 - **Home**：Start／How to／Settings（安全・モザイク・難易度・操作方法）。
-- **Framing**：3×4 枠表示・距離ガイド。
+- **Framing**：4×3 枠表示・距離ガイド。
 - **Play**：ライブプレビュー＋盤面＋ 3 ボタン操作＋ IoU バー＋推奨サイズ。
 - **Result**：スコア、最高 IoU、総ライン、**多様性指数**、再挑戦。
 
@@ -254,7 +254,7 @@ func spawnColumn(for g: Grid3x4) -> Int {
 1. `GameCore`：盤面・衝突・ライン消去・操作（左右/回転）
 2. AVFoundation パイプライン（プレビュー／フレーム取得）
 3. Vision パイプライン（人物セグ＋ポーズ）
-4. 3×4 量子化／連結部分集合探索／重心列マッピング
+4. 4×3 量子化／連結部分集合探索／重心列マッピング
 5. ライブガイド UI（ヒートマップ・バー・ヒント）
 6. 2D 描画（SpriteKit）とアニメーション
 7. 安全・プライバシ UI／オンボーディング
@@ -329,7 +329,7 @@ func spawnColumn(for g: Grid3x4) -> Int {
 
 ```swift
 struct GameState { var board: [[Cell]]; var score: Int; var lines: Int }
-struct CaptureState { var grid: Grid3x4; var iou: Float; var stableMs: Int }
+struct CaptureState { var grid: Grid4x3; var iou: Float; var stableMs: Int }
 struct Settings { var difficulty: Difficulty; var mosaic: Bool; var inputStyle: InputStyle }
 ```
 
@@ -348,7 +348,7 @@ struct Settings { var difficulty: Difficulty; var mosaic: Bool; var inputStyle: 
 ## 23. 実装メモ（Tips）
 
 - Vision 推論は `AVCaptureVideoDataOutput` の低解像度支流で実行し、統計のみ UI へ渡す。
-- 占有率は `vImage` でブロック平均化すると高速。3×4 なら固定カーネルで最適化可。
+- 占有率は `vImage` でブロック平均化すると高速。4×3 なら固定カーネルで最適化可。
 - 連結部分集合の探索は **事前に全形状（3〜6 セル）の正規形** を生成・キャッシュしておくと IoU 計算が安定。
 - スコア式の重み `w1..w5` はテレメトリでチューニング。
 
@@ -364,7 +364,7 @@ struct Settings { var difficulty: Difficulty; var mosaic: Bool; var inputStyle: 
 
 **Phase B：認識・量子化（Day 3–5）**
 
-- Vision 人物セグ+ポーズ導入、3×4 量子化の実装（vImage ブロック平均）。
+- Vision 人物セグ+ポーズ導入、4×3 量子化の実装（vImage ブロック平均）。
 - 連結部分集合探索（ビームサーチ）をスタブ → ユニットテスト（合成マスク 20 種）。
 
 **Phase C：統合と UI（Day 6–8）**
@@ -416,7 +416,7 @@ gameScore = α \* linesBonus + β \* IoU + γ \* stable + δ \* diversityIndex
 
 ## 26. 連結部分集合探索（ビームサーチ）詳細
 
-- 入力：3×4 セルの占有率行列 S ∈ \[0,1]^(3×4)。
+- 入力：4×3 セルの占有率行列 S ∈ \[0,1]^(4×3)。
 - 手順：
 
   1. 占有率上位 M（例：M=8）セルを起点に選択。
@@ -478,7 +478,7 @@ gameScore = α \* linesBonus + β \* IoU + γ \* stable + δ \* diversityIndex
 
 - Capture/検出：
 
-  - 3×4 量子化の境界閾値テスト（θ 変動）。
+  - 4×3 量子化の境界閾値テスト（θ 変動）。
   - ビームサーチの最適性（合成マスクに対して期待形状を選ぶ）。
   - 遅延測定（中央値 ≤250ms）。
 
@@ -536,7 +536,7 @@ gameScore = α \* linesBonus + β \* IoU + γ \* stable + δ \* diversityIndex
 ✅ **カメラ・Vision統合**
 - AVFoundation カメラプレビュー・フレーム取得
 - Vision 人物セグメンテーション・骨格推定
-- 3×4 量子化・連結成分抽出
+- 4×3 量子化・連結成分抽出
 
 ✅ **連続ゲームループ**
 - GamePieceProvider プロトコル
@@ -544,9 +544,10 @@ gameScore = α \* linesBonus + β \* IoU + γ \* stable + δ \* diversityIndex
 - 非同期処理によるUIフリーズ解決
 
 ✅ **UI/UX**
-- メイン画面（カメラプレビュー + 3×4フレーム）
+- メイン画面（カメラプレビュー + 4×3フレーム）
 - ゲーム画面（盤面描画・操作ボタン・統計表示）
 - IoU・安定時間バー、プログレス表示
+- レスポンシブレイアウト（デバイス幅適応）
 
 ### 33.2 実装予定機能
 

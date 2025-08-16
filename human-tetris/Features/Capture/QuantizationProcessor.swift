@@ -11,12 +11,12 @@ import Accelerate
 import Vision
 
 class QuantizationProcessor: ObservableObject {
-    @Published var currentGrid = Grid3x4()
-    @Published var occupancyRates: [[Float]] = Array(repeating: Array(repeating: 0.0, count: 4), count: 3)
+    @Published var currentGrid = Grid4x3()
+    @Published var occupancyRates: [[Float]] = Array(repeating: Array(repeating: 0.0, count: 3), count: 4)
     @Published var isStable = false
     @Published var stableTime: TimeInterval = 0
     
-    private var lastStableGrid: Grid3x4?
+    private var lastStableGrid: Grid4x3?
     private var stableStartTime: Date?
     private let stableThreshold: TimeInterval = 0.4
     private var adaptiveThreshold: Float = 0.45
@@ -25,12 +25,12 @@ class QuantizationProcessor: ObservableObject {
     private let maxThreshold: Float = 0.55
     private let adaptationRate: Float = 0.01
     
-    func quantize(mask: CVPixelBuffer, roi: CGRect, threshold: Float = 0.45) -> Grid3x4 {
+    func quantize(mask: CVPixelBuffer, roi: CGRect, threshold: Float = 0.45) -> Grid4x3 {
         CVPixelBufferLockBaseAddress(mask, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(mask, .readOnly) }
         
         guard let baseAddress = CVPixelBufferGetBaseAddress(mask) else {
-            return Grid3x4()
+            return Grid4x3()
         }
         
         let width = CVPixelBufferGetWidth(mask)
@@ -42,14 +42,14 @@ class QuantizationProcessor: ObservableObject {
         let roiWidth = Int(roi.width)
         let roiHeight = Int(roi.height)
         
-        let cellWidth = roiWidth / 4
-        let cellHeight = roiHeight / 3
+        let cellWidth = roiWidth / 3
+        let cellHeight = roiHeight / 4
         
-        var newOccupancyRates: [[Float]] = Array(repeating: Array(repeating: 0.0, count: 4), count: 3)
-        var grid = Grid3x4()
+        var newOccupancyRates: [[Float]] = Array(repeating: Array(repeating: 0.0, count: 3), count: 4)
+        var grid = Grid4x3()
         
-        for row in 0..<3 {
-            for col in 0..<4 {
+        for row in 0..<4 {
+            for col in 0..<3 {
                 let cellStartX = roiX + col * cellWidth
                 let cellStartY = roiY + row * cellHeight
                 let cellEndX = min(cellStartX + cellWidth, width)
@@ -87,7 +87,7 @@ class QuantizationProcessor: ObservableObject {
         return grid
     }
     
-    private func updateStability(with grid: Grid3x4) {
+    private func updateStability(with grid: Grid4x3) {
         let currentTime = Date()
         
         if let lastGrid = lastStableGrid, lastGrid == grid {
@@ -120,19 +120,19 @@ class QuantizationProcessor: ObservableObject {
     }
     
     func reset() {
-        currentGrid = Grid3x4()
-        occupancyRates = Array(repeating: Array(repeating: 0.0, count: 4), count: 3)
+        currentGrid = Grid4x3()
+        occupancyRates = Array(repeating: Array(repeating: 0.0, count: 3), count: 4)
         lastStableGrid = nil
         stableStartTime = nil
         stableTime = 0
         isStable = false
     }
     
-    func applyMorphologyOperations(to grid: inout Grid3x4) {
+    func applyMorphologyOperations(to grid: inout Grid4x3) {
         var processedGrid = grid
         
-        for row in 0..<3 {
-            for col in 0..<4 {
+        for row in 0..<4 {
+            for col in 0..<3 {
                 let neighbors = getNeighbors(row: row, col: col, in: grid)
                 let onNeighbors = neighbors.filter { grid[$0.row, $0.col] }.count
                 
@@ -151,7 +151,7 @@ class QuantizationProcessor: ObservableObject {
         grid = processedGrid
     }
     
-    private func getNeighbors(row: Int, col: Int, in grid: Grid3x4) -> [(row: Int, col: Int)] {
+    private func getNeighbors(row: Int, col: Int, in grid: Grid4x3) -> [(row: Int, col: Int)] {
         let directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
         var neighbors: [(row: Int, col: Int)] = []
         
@@ -159,7 +159,7 @@ class QuantizationProcessor: ObservableObject {
             let newRow = row + dr
             let newCol = col + dc
             
-            if newRow >= 0 && newRow < 3 && newCol >= 0 && newCol < 4 {
+            if newRow >= 0 && newRow < 4 && newCol >= 0 && newCol < 3 {
                 neighbors.append((row: newRow, col: newCol))
             }
         }
@@ -167,11 +167,11 @@ class QuantizationProcessor: ObservableObject {
         return neighbors
     }
     
-    func removeSmallComponents(from grid: inout Grid3x4, minSize: Int = 2) {
-        var visited = Array(repeating: Array(repeating: false, count: 4), count: 3)
+    func removeSmallComponents(from grid: inout Grid4x3, minSize: Int = 2) {
+        var visited = Array(repeating: Array(repeating: false, count: 3), count: 4)
         
-        for row in 0..<3 {
-            for col in 0..<4 {
+        for row in 0..<4 {
+            for col in 0..<3 {
                 if grid[row, col] && !visited[row][col] {
                     let component = floodFill(grid: grid, visited: &visited, startRow: row, startCol: col)
                     
@@ -185,7 +185,7 @@ class QuantizationProcessor: ObservableObject {
         }
     }
     
-    private func floodFill(grid: Grid3x4, visited: inout [[Bool]], startRow: Int, startCol: Int) -> [(Int, Int)] {
+    private func floodFill(grid: Grid4x3, visited: inout [[Bool]], startRow: Int, startCol: Int) -> [(Int, Int)] {
         var component: [(Int, Int)] = []
         var stack: [(Int, Int)] = [(startRow, startCol)]
         

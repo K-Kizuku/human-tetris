@@ -22,87 +22,101 @@ struct GameView: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        VStack(spacing: 0) {
-            // デバッグ用ヘッダー
-            Text("TETRIS GAME")
-                .font(.title)
-                .foregroundColor(.white)
-                .padding(.top)
+        GeometryReader { geometry in
+            let screenWidth = geometry.size.width
+            let screenHeight = geometry.size.height
             
-            Text("Initial Piece: \(initialPiece.cells.count) cells")
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.7))
-                .padding(.bottom)
-            // スコア表示
-            GameInfoBar(
-                score: score,
-                lines: lines,
-                time: elapsedTime,
-                gameOver: gameCore.gameState.gameOver
-            )
-            .frame(height: 60)
-            .background(Color.black.opacity(0.3))
+            // レイアウト計算
+            let maxGameBoardWidth = min(250, screenWidth * 0.65)
+            let sideWidth = max(60, min(80, (screenWidth - maxGameBoardWidth) / 2 * 0.8))
+            let spacing = max(8, min(20, screenWidth * 0.03))
+            let gameBoardHeight = min(500, screenHeight * 0.6)
             
-            // ゲーム盤面
-            HStack(spacing: 20) {
-                // 左側：次のピース情報
-                VStack(spacing: 20) {
-                    NextPieceView(nextPiece: gameCore.nextPiecePreview)
-                    
-                    LevelIndicator(
-                        level: gameCore.gameState.level,
-                        progress: Double(lines % 10) / 10.0
-                    )
-                    
-                    Spacer()
-                }
-                .frame(width: 80)
+            VStack(spacing: 0) {
+                // デバッグ用ヘッダー
+                Text("TETRIS GAME")
+                    .font(.title)
+                    .foregroundColor(.white)
+                    .padding(.top)
                 
-                // 中央：ゲーム盤
-                ZStack {
-                    GameBoardView(gameCore: gameCore)
-                        .scaleEffect(boardScale)
-                    
-                    // 次ピース待機表示
-                    if gameCore.waitingForNextPiece {
-                        WaitingForPieceOverlay()
+                Text("Initial Piece: \(initialPiece.cells.count) cells")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
+                    .padding(.bottom)
+                // スコア表示
+                GameInfoBar(
+                    score: score,
+                    lines: lines,
+                    time: elapsedTime,
+                    gameOver: gameCore.gameState.gameOver
+                )
+                .frame(height: 60)
+                .background(Color.black.opacity(0.3))
+                
+                // ゲーム盤面
+                HStack(spacing: spacing) {
+                    // 左側：次のピース情報
+                    VStack(spacing: 12) {
+                        NextPieceView(nextPiece: gameCore.nextPiecePreview)
+                        
+                        LevelIndicator(
+                            level: gameCore.gameState.level,
+                            progress: Double(lines % 10) / 10.0
+                        )
+                        
+                        Spacer()
                     }
-                }
-                .frame(width: 250, height: 500)
-                
-                // 右側：統計情報
-                VStack(spacing: 20) {
-                    StatsView(gameState: gameCore.gameState)
+                    .frame(width: sideWidth)
                     
-                    Spacer()
+                    // 中央：ゲーム盤
+                    ZStack {
+                        GameBoardView(
+                            gameCore: gameCore,
+                            targetSize: CGSize(width: maxGameBoardWidth, height: gameBoardHeight)
+                        )
+                        .scaleEffect(boardScale)
+                        
+                        // 次ピース待機表示
+                        if gameCore.waitingForNextPiece {
+                            WaitingForPieceOverlay()
+                        }
+                    }
+                    .frame(width: maxGameBoardWidth, height: gameBoardHeight)
+                    
+                    // 右側：統計情報
+                    VStack(spacing: 12) {
+                        StatsView(gameState: gameCore.gameState)
+                        
+                        Spacer()
+                    }
+                    .frame(width: sideWidth)
                 }
-                .frame(width: 80)
-            }
-            .padding(.horizontal)
-            .frame(maxHeight: .infinity)
-            
-            Spacer()
-            
-            // 操作ボタン
-            GameControlsView(gameCore: gameCore)
-                .padding(.horizontal)
-                .padding(.bottom, 30)
-                .frame(height: 150)
-            
-            // 緊急用フォールバック表示
-            if gameCore.gameState.currentPiece == nil {
-                VStack {
-                    Text("GAME INITIALIZING...")
-                        .font(.title2)
-                        .foregroundColor(.yellow)
-                    Text("Waiting for pieces...")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
+                .padding(.horizontal, max(8, screenWidth * 0.02))
+                .frame(maxHeight: .infinity)
+                
+                Spacer()
+                
+                // 操作ボタン
+                GameControlsView(gameCore: gameCore)
+                    .padding(.horizontal, max(8, screenWidth * 0.02))
+                    .padding(.bottom, 30)
+                    .frame(height: min(150, screenHeight * 0.15))
+                
+                // 緊急用フォールバック表示
+                if gameCore.gameState.currentPiece == nil {
+                    VStack {
+                        Text("GAME INITIALIZING...")
+                            .font(.title2)
+                            .foregroundColor(.yellow)
+                        Text("Waiting for pieces...")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                    .padding()
+                    .background(Color.red.opacity(0.3))
+                    .cornerRadius(8)
+                    .padding()
                 }
-                .padding()
-                .background(Color.red.opacity(0.3))
-                .cornerRadius(8)
-                .padding()
             }
         }
         .background(

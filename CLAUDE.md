@@ -78,8 +78,8 @@ human-tetris/
 - **Pipeline**: `AVCaptureVideoDataOutput` → (BG) `Vision`
   - 人物セグ: `VNGeneratePersonSegmentationRequest`（中品質・fps 優先）
   - 骨格補助: `VNDetectHumanBodyPoseRequest`（妥当性/チート抑止）
-- **量子化**（ROI 3×4）:
-  - vImage でマスクを **3×4 平均縮約** → セル **占有率 0..1**
+- **量子化**（ROI 4×3）:
+  - vImage でマスクを **4×3 平均縮約** → セル **占有率 0..1**（縦4マス、横3マス）
   - 閾値 `θ` により ON/OFF（初期 `θ=0.45`、適応レンジ `0.35..0.55`）
   - 小連結成分除去＆モルフォロジでノイズ低減
 - **候補抽出**（3..6 連結, 4 近傍）: **ビームサーチ**（幅 8..12, 早期枝刈り）
@@ -89,9 +89,9 @@ human-tetris/
 **提供関数（純ロジック）**（Claude はこの API を優先して実装/利用）:
 
 ```swift
-struct Grid3x4 { var on: [[Bool]] } // 3 rows x 4 cols
+struct Grid4x3 { var on: [[Bool]] } // 4 rows x 3 cols
 
-func quantize(mask: CVPixelBuffer, roi: CGRect, threshold: Float) -> Grid3x4
+func quantize(mask: CVPixelBuffer, roi: CGRect, threshold: Float) -> Grid4x3
 
 struct Polyomino {
     let cells: [(x: Int, y: Int)] // 3..6 連結
@@ -99,8 +99,8 @@ struct Polyomino {
     var size: Int { cells.count }
 }
 
-func bestConnectedSubset(from grid: Grid3x4) -> Polyomino?
-func spawnColumn(for grid: Grid3x4) -> Int // 重心X→0..9
+func bestConnectedSubset(from grid: Grid4x3) -> Polyomino?
+func spawnColumn(for grid: Grid4x3) -> Int // 重心X→0..9
 
 // 連続ゲームループ用プロトコル
 protocol GamePieceProvider {
@@ -153,7 +153,7 @@ struct TargetSpec {
 - **決定**: 盤面特徴/多様性/クールダウン/ミッションで TargetSpec 群をスコア → 上位採用
 - **検出統合**: スコア式の `w4*TargetSpec一致` を付加（仕様 §8.1 / §25.1）
 
-**UI**: 3×4 ゴースト表示、短文ヒント（骨格差分）、`match=α*IoU+β*関節一致度` バー。
+**UI**: 4×3 ゴースト表示、短文ヒント（骨格差分）、`match=α*IoU+β*関節一致度` バー。
 
 ---
 
@@ -335,6 +335,8 @@ xcodebuild test -project human-tetris.xcodeproj \
 - 2025-08-16: 日本語運用／iOS 18.6 前提ガードレールを確定。
 - 2025-08-16: **連続ゲームループ実装完了** - GamePieceProvider プロトコルと PieceQueue システムによる自動ピース生成。
 - 2025-08-16: **UI フリーズ問題解決** - 非同期処理による setPieceProvider デッドロックの修正。
+- 2025-08-16: **4×3グリッド対応完了** - Grid3x4 → Grid4x3 への変更、ピース生成ロジック修正、アスペクト比制限緩和。
+- 2025-08-16: **レスポンシブレイアウト実装完了** - GeometryReader による動的サイズ調整、全デバイス対応。
 
 ## 15. 実装完了済み機能（2025-08-16 現在）
 

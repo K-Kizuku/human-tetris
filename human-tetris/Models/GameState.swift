@@ -120,7 +120,7 @@ struct GameState {
 }
 
 struct CaptureState {
-    var grid: Grid3x4
+    var grid: Grid4x3
     var iou: Float
     var stableMs: Int
     var isStable: Bool {
@@ -128,7 +128,7 @@ struct CaptureState {
     }
     
     init() {
-        self.grid = Grid3x4()
+        self.grid = Grid4x3()
         self.iou = 0.0
         self.stableMs = 0
     }
