@@ -337,6 +337,37 @@ struct CaptureView: View, GamePieceProvider {
         }
         pendingPieceRequests.removeAll()
     }
+    
+    // MARK: - New GamePieceProvider Methods (Extended Protocol)
+    
+    func beginCountdown() {
+        print("CaptureView: beginCountdown() called")
+        // 将来的にカウントダウンマネージャーを統合予定
+    }
+    
+    func cancelCountdown() {
+        print("CaptureView: cancelCountdown() called")
+        // 将来的にカウントダウンマネージャーを統合予定
+    }
+    
+    func captureAtZero() -> Polyomino? {
+        print("CaptureView: captureAtZero() called")
+        // 0秒時点でのスナップショット処理
+        let currentGrid = quantizationProcessor.currentGrid
+        if let extractedPiece = shapeExtractor.extractBestShape(from: currentGrid) {
+            print("CaptureView: Successfully extracted piece at zero: \(extractedPiece.cells.count) cells")
+            return extractedPiece
+        } else {
+            print("CaptureView: No valid piece extracted at zero")
+            return nil
+        }
+    }
+    
+    func fallbackTetromino() -> Polyomino {
+        print("CaptureView: fallbackTetromino() called")
+        // 標準テトロミノからランダム選択
+        return StandardTetrominos.random()
+    }
 }
 
 // MARK: - CameraManagerDelegate

@@ -123,6 +123,10 @@ struct CaptureState {
     var grid: Grid4x3
     var iou: Float
     var stableMs: Int
+    var countdown: Int           // 3..0
+    var snapshotAtZero: Bool     // 0秒で取得したか
+    var shapeId: String?         // 正規化署名（回転・反転を含め同形判定用）
+    
     var isStable: Bool {
         return stableMs >= 400
     }
@@ -131,5 +135,45 @@ struct CaptureState {
         self.grid = Grid4x3()
         self.iou = 0.0
         self.stableMs = 0
+        self.countdown = 3
+        self.snapshotAtZero = false
+        self.shapeId = nil
+    }
+    
+    init(grid: Grid4x3, iou: Float, stableMs: Int, countdown: Int = 3, snapshotAtZero: Bool = false, shapeId: String? = nil) {
+        self.grid = grid
+        self.iou = iou
+        self.stableMs = stableMs
+        self.countdown = countdown
+        self.snapshotAtZero = snapshotAtZero
+        self.shapeId = shapeId
+    }
+}
+
+// MARK: - Countdown Management
+
+extension CaptureState {
+    var isCountdownActive: Bool {
+        return countdown >= 0
+    }
+    
+    var shouldCaptureSnapshot: Bool {
+        return countdown == 0 && !snapshotAtZero
+    }
+    
+    mutating func decrementCountdown() {
+        if countdown > 0 {
+            countdown -= 1
+        }
+    }
+    
+    mutating func resetCountdown() {
+        countdown = 3
+        snapshotAtZero = false
+        shapeId = nil
+    }
+    
+    mutating func markSnapshotTaken() {
+        snapshotAtZero = true
     }
 }

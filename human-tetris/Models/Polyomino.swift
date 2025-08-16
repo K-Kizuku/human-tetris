@@ -154,6 +154,59 @@ struct Polyomino: Equatable {
         
         return uniqueCells
     }
+    
+    // MARK: - Shape Signature (shapeId) for equivalence detection
+    
+    func calculateShapeId() -> String {
+        // 回転・反転を含めた形状の正規化署名を計算
+        let normalizedCells = normalize(cells)
+        
+        // 全ての回転（0, 90, 180, 270度）と反転の組み合わせを生成
+        var allVariants: [[(x: Int, y: Int)]] = []
+        
+        // 4つの回転
+        var currentVariant = normalizedCells
+        for _ in 0..<4 {
+            allVariants.append(normalize(currentVariant))
+            currentVariant = rotateVariant(currentVariant)
+        }
+        
+        // 水平反転後の4つの回転
+        let flippedVariant = flipHorizontally(normalizedCells)
+        currentVariant = flippedVariant
+        for _ in 0..<4 {
+            allVariants.append(normalize(currentVariant))
+            currentVariant = rotateVariant(currentVariant)
+        }
+        
+        // 全てのバリアントを辞書順でソートし、最小のものを正規形とする
+        let sortedVariants = allVariants.map { variantToString($0) }.sorted()
+        return sortedVariants.first ?? ""
+    }
+    
+    private func rotateVariant(_ cells: [(x: Int, y: Int)]) -> [(x: Int, y: Int)] {
+        // 90度時計回り回転: (x,y) -> (-y,x)
+        return cells.map { (x: -$0.y, y: $0.x) }
+    }
+    
+    private func flipHorizontally(_ cells: [(x: Int, y: Int)]) -> [(x: Int, y: Int)] {
+        guard !cells.isEmpty else { return cells }
+        let maxX = cells.map { $0.x }.max()!
+        return cells.map { (x: maxX - $0.x, y: $0.y) }
+    }
+    
+    private func variantToString(_ cells: [(x: Int, y: Int)]) -> String {
+        let sortedCells = cells.sorted { (a, b) in
+            if a.x != b.x { return a.x < b.x }
+            return a.y < b.y
+        }
+        return sortedCells.map { "\($0.x),\($0.y)" }.joined(separator: ";")
+    }
+    
+    // 他のPolyominoとの同形判定
+    func isEquivalentShape(to other: Polyomino) -> Bool {
+        return self.calculateShapeId() == other.calculateShapeId()
+    }
 }
 
 enum AspectType {

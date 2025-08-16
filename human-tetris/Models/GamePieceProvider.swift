@@ -10,6 +10,12 @@ import Foundation
 protocol GamePieceProvider {
     func requestNextPiece(completion: @escaping (Polyomino?) -> Void)
     func isAvailable() -> Bool
+    
+    // 新機能: 3秒カウントダウン制御
+    func beginCountdown()              // 3秒開始
+    func cancelCountdown()
+    func captureAtZero() -> Polyomino? // 0秒スナップショット→成功なら形状、失敗ならnil
+    func fallbackTetromino() -> Polyomino // 7種から等確率
 }
 
 // ピースキューシステム
@@ -85,23 +91,51 @@ class PieceQueue: ObservableObject {
     }
     
     private func generateFallbackPiece() -> Polyomino {
-        let shapes: [[(x: Int, y: Int)]] = [
-            // I型
-            [(0, 0), (0, 1), (0, 2), (0, 3)],
-            // L型
-            [(0, 0), (0, 1), (0, 2), (1, 2)],
-            // T型
-            [(0, 1), (1, 0), (1, 1), (1, 2)],
-            // Z型
-            [(0, 0), (0, 1), (1, 1), (1, 2)],
-            // O型
-            [(0, 0), (0, 1), (1, 0), (1, 1)]
-        ]
+        return StandardTetrominos.random()
+    }
+}
+
+// MARK: - Standard Tetrominos (7種類)
+
+struct StandardTetrominos {
+    static let allShapes: [Polyomino] = [
+        // I型 (4セル, 直線)
+        Polyomino(cells: [(0, 0), (0, 1), (0, 2), (0, 3)]),
         
-        let randomShape = shapes.randomElement() ?? shapes[0]
-        return Polyomino(cells: randomShape)
+        // O型 (4セル, 正方形)
+        Polyomino(cells: [(0, 0), (0, 1), (1, 0), (1, 1)]),
+        
+        // T型 (4セル, T字)
+        Polyomino(cells: [(0, 1), (1, 0), (1, 1), (1, 2)]),
+        
+        // L型 (4セル, L字)
+        Polyomino(cells: [(0, 0), (0, 1), (0, 2), (1, 2)]),
+        
+        // J型 (4セル, 逆L字)
+        Polyomino(cells: [(0, 2), (1, 0), (1, 1), (1, 2)]),
+        
+        // S型 (4セル, S字)
+        Polyomino(cells: [(0, 1), (0, 2), (1, 0), (1, 1)]),
+        
+        // Z型 (4セル, Z字)
+        Polyomino(cells: [(0, 0), (0, 1), (1, 1), (1, 2)])
+    ]
+    
+    static func random() -> Polyomino {
+        return allShapes.randomElement() ?? allShapes[0]
     }
     
+    static func randomExcluding(shapeIds: [String]) -> Polyomino {
+        let availableShapes = allShapes.filter { piece in
+            !shapeIds.contains(piece.calculateShapeId())
+        }
+        return availableShapes.randomElement() ?? random()
+    }
+}
+
+// MARK: - PieceQueue Extensions
+
+extension PieceQueue {
     var nextPiecePreview: Polyomino? {
         return nextPieces.first
     }

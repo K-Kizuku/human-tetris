@@ -37,7 +37,7 @@ struct HomeView: View {
                     }
                     
                     VStack(spacing: 20) {
-                        NavigationLink(destination: CaptureView()) {
+                        NavigationLink(destination: UnifiedGameView()) {
                             MenuButton(title: "ゲームスタート", icon: "play.fill", color: .green)
                         }
                         
