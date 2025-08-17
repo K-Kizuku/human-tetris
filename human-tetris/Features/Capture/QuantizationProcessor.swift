@@ -18,12 +18,16 @@ class QuantizationProcessor: ObservableObject {
     
     private var lastStableGrid: Grid4x3?
     private var stableStartTime: Date?
-    private let stableThreshold: TimeInterval = 0.4
-    private var adaptiveThreshold: Float = 0.45
+    private let stableThreshold: TimeInterval = 0.4  // 元の安定判定時間
+    private var adaptiveThreshold: Float = 0.45  // 元の閾値に戻す
     
-    private let minThreshold: Float = 0.35
-    private let maxThreshold: Float = 0.55
+    private let minThreshold: Float = 0.35  // 元の下限値
+    private let maxThreshold: Float = 0.55  // 元の上限値
     private let adaptationRate: Float = 0.01
+    
+    // ユーザーフレンドリーな閾値設定
+    private let clearOnThreshold: Float = 0.45   // マスがONになる閾値
+    private let clearOffThreshold: Float = 0.35  // マスがOFFになる閾値（ヒステリシス）
     
     func quantize(mask: CVPixelBuffer, roi: CGRect, threshold: Float = 0.45) -> Grid4x3 {
         CVPixelBufferLockBaseAddress(mask, .readOnly)
@@ -85,7 +89,16 @@ class QuantizationProcessor: ObservableObject {
                 
                 let occupancyRate = totalPixels > 0 ? Float(foregroundPixels) / Float(totalPixels) : 0.0
                 newOccupancyRates[row][col] = occupancyRate
-                grid[row, col] = occupancyRate > threshold
+                
+                // ヒステリシス（履歴）を使った安定した判定
+                let currentState = currentGrid[row, col]
+                if currentState {
+                    // 現在ONの場合、低い閾値でOFFに切り替える
+                    grid[row, col] = occupancyRate > clearOffThreshold
+                } else {
+                    // 現在OFFの場合、高い閾値でONに切り替える
+                    grid[row, col] = occupancyRate > clearOnThreshold
+                }
                 
                 // デバッグ情報（最初の数フレームのみ）
                 if row == 0 && col == 0 {

@@ -39,7 +39,7 @@ struct GameView: View {
     }
     
     private func playMenuBGM() {
-        AudioManager.shared.playMenuBGM()
+        AudioManager.shared.playMenuBGM()  // 実際にはSFX（ループなし）
     }
     
     private func playScoreSound() {
@@ -65,24 +65,23 @@ struct GameView: View {
             let gameBoardHeight = min(400, availableHeight * 0.8)
 
             VStack(spacing: 0) {
-                // 上部：スコア表示
-                GameInfoBar(
+                // 上部：ネオンスコア表示
+                NeonGameInfoBar(
                     score: score,
                     lines: lines,
                     time: elapsedTime,
-                    gameOver: gameCore.gameState.gameOver,
+                    gameOver: gameCore.gameOver,
                     dropSpeedMultiplier: gameCore.currentDropSpeedMultiplier
                 )
                 .frame(height: topBarHeight)
-                .background(Color.black.opacity(0.3))
 
                 // 中央：ゲーム盤面
                 HStack(spacing: spacing) {
                     // 左側：次のピース情報
                     VStack(spacing: 8) {
-                        NextPieceView(nextPiece: gameCore.nextPiecePreview)
+                        NeonNextPieceView(nextPiece: gameCore.nextPiecePreview)
 
-                        LevelIndicator(
+                        NeonLevelIndicator(
                             level: gameCore.gameState.level,
                             progress: Double(lines % 10) / 10.0
                         )
@@ -109,59 +108,68 @@ struct GameView: View {
                             WaitingForPieceOverlay()
                         }
                         
-                        // ゲームオーバー時のオーバーレイ
-                        if gameCore.gameState.gameOver {
+                        // ネオンゲームオーバー時のオーバーレイ
+                        if gameCore.gameOver {
                             VStack(spacing: 20) {
-                                Text("🚫")
+                                Text("💀")
                                     .font(.system(size: 60))
+                                    .neonGlow(color: NeonColors.neonPink, radius: 15)
                                 Text("GAME OVER")
-                                    .font(.largeTitle)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.red)
+                                    .font(.system(size: 32, weight: .black, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .neonGlow(color: NeonColors.neonPink, radius: 12, intensity: 1.2)
                                 Text("結果を確認中...")
                                     .font(.headline)
-                                    .foregroundColor(.white.opacity(0.8))
+                                    .foregroundColor(NeonColors.neonCyan)
+                                    .pulsingNeon(color: NeonColors.neonCyan)
                             }
                             .padding(40)
                             .background(
                                 RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.black.opacity(0.9))
+                                    .fill(NeonColors.spaceBlack.opacity(0.95))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .stroke(NeonColors.neonPink, lineWidth: 2)
+                                    )
                             )
+                            .neonGlow(color: NeonColors.neonPink, radius: 20, intensity: 1.0)
                             .transition(.opacity)
                         }
                     }
                     .frame(width: maxGameBoardWidth, height: gameBoardHeight)
 
-                    // 右側：統計情報
+                    // 右側：ネオン統計情報
                     VStack(spacing: 8) {
-                        StatsView(gameState: gameCore.gameState)
+                        NeonStatsView(gameState: gameCore.gameState)
                         
-                        // ゲーム状態インジケーター
+                        // ネオンゲーム状態インジケーター
                         VStack(spacing: 6) {
                             if gameCore.isAnimating {
                                 HStack(spacing: 4) {
                                     Circle()
-                                        .fill(Color.orange)
+                                        .fill(NeonColors.neonOrange)
                                         .frame(width: 6, height: 6)
                                         .scaleEffect(1.2)
+                                        .neonGlow(color: NeonColors.neonOrange, radius: 4)
                                         .animation(
                                             .easeInOut(duration: 0.3).repeatForever(autoreverses: true),
                                             value: gameCore.isAnimating
                                         )
                                     Text("処理中")
                                         .font(.caption2)
-                                        .foregroundColor(.orange)
+                                        .foregroundColor(NeonColors.neonOrange)
                                 }
                             }
                             
                             if gameCore.waitingForNextPiece {
                                 HStack(spacing: 4) {
                                     Circle()
-                                        .fill(Color.cyan)
+                                        .fill(NeonColors.neonCyan)
                                         .frame(width: 6, height: 6)
+                                        .neonGlow(color: NeonColors.neonCyan, radius: 4)
                                     Text("待機中")
                                         .font(.caption2)
-                                        .foregroundColor(.cyan)
+                                        .foregroundColor(NeonColors.neonCyan)
                                 }
                             }
                         }
@@ -173,8 +181,8 @@ struct GameView: View {
                 .padding(.horizontal, max(6, screenWidth * 0.015))
                 .frame(maxHeight: .infinity)
 
-                // 下部：操作ボタン
-                GameControlsView(gameCore: gameCore)
+                // 下部：ネオン操作ボタン
+                NeonGameControlsView(gameCore: gameCore)
                     .padding(.horizontal, max(6, screenWidth * 0.015))
                     .padding(.bottom, 20)
                     .frame(height: controlsHeight)
@@ -194,12 +202,14 @@ struct GameView: View {
             }
         }
         .background(
-            LinearGradient(
-                gradient: Gradient(colors: [Color.black, Color.blue.opacity(0.3)]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            ZStack {
+                // ネオン宇宙背景
+                NeonColors.mainBackgroundGradient
+                    .ignoresSafeArea()
+                
+                // 動的パーティクル効果（軽量版）
+                NeonGameParticleBackground()
+            }
         )
         .onAppear {
             startGame()
@@ -210,8 +220,10 @@ struct GameView: View {
             facialExpressionManager.stopTracking()
             // BGM停止（一時的に空実装）
         }
-        .onChange(of: gameCore.gameState.gameOver) { _, gameOver in
-            if gameOver {
+        .onChange(of: gameCore.gameOver) { oldValue, newValue in
+            print("GameView: onChange triggered - oldValue: \(oldValue), newValue: \(newValue)")
+            if newValue {
+                print("GameView: Game over detected via @Published gameOver, transitioning to result screen")
                 // BGM停止（一時的に空実装）
                 playMenuBGM()
                 endGame()
@@ -275,6 +287,9 @@ struct GameView: View {
                     dismiss()
                 }
             )
+            .onAppear {
+                print("GameView: GameResultView sheet presented")
+            }
         }
     }
 
@@ -330,12 +345,15 @@ struct GameView: View {
             elapsedTime += 1
         }
     }
+    
 
     private func endGame() {
+        print("GameView: endGame() called, stopping timer and showing result")
         gameTimer?.invalidate()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            showingResult = true
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            print("GameView: Setting showingResult = true")
+            self.showingResult = true
         }
     }
 
@@ -375,12 +393,13 @@ extension GameView: FacialExpressionManagerDelegate {
     }
 }
 
-struct GameInfoBar: View {
+/// ネオンゲーム情報バー
+struct NeonGameInfoBar: View {
     let score: Int
     let lines: Int
     let time: TimeInterval
     let gameOver: Bool
-    let dropSpeedMultiplier: Double?  // 落下速度倍率（オプショナル）
+    let dropSpeedMultiplier: Double?
 
     private var formattedTime: String {
         let minutes = Int(time) / 60
@@ -390,11 +409,11 @@ struct GameInfoBar: View {
 
     var body: some View {
         HStack {
-            // 左側：基本情報（コンパクト）
+            // 左側：基本情報（ネオンスタイル）
             HStack(spacing: 16) {
-                InfoItem(title: "スコア", value: "\(score)")
-                InfoItem(title: "ライン", value: "\(lines)")
-                InfoItem(title: "時間", value: formattedTime)
+                NeonInfoItem(title: "スコア", value: "\(score)", color: NeonColors.neonPink)
+                NeonInfoItem(title: "ライン", value: "\(lines)", color: NeonColors.neonCyan)
+                NeonInfoItem(title: "時間", value: formattedTime, color: NeonColors.neonYellow)
             }
 
             Spacer()
@@ -404,24 +423,33 @@ struct GameInfoBar: View {
                 Text("GAME OVER")
                     .font(.subheadline)
                     .fontWeight(.bold)
-                    .foregroundColor(.red)
+                    .foregroundColor(.white)
+                    .neonGlow(color: NeonColors.neonPink, radius: 8, intensity: 1.2)
                     .animation(.bouncy, value: gameOver)
             } else if let speedMultiplier = dropSpeedMultiplier, speedMultiplier != 1.0 {
                 HStack(spacing: 4) {
                     Image(systemName: speedMultiplier < 1.0 ? "tortoise.fill" : "hare.fill")
-                        .foregroundColor(speedMultiplier < 1.0 ? .green : .red)
+                        .foregroundColor(speedMultiplier < 1.0 ? NeonColors.neonGreen : NeonColors.neonOrange)
                         .font(.caption)
+                        .neonGlow(color: speedMultiplier < 1.0 ? NeonColors.neonGreen : NeonColors.neonOrange, radius: 4)
 
                     Text("\(String(format: "%.1f", speedMultiplier))x")
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(.white.opacity(0.9))
+                        .foregroundColor(.white)
                 }
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(Color.black.opacity(0.3))
+        .background(
+            NeonColors.spaceBlack.opacity(0.8)
+                .overlay(
+                    Rectangle()
+                        .stroke(NeonColors.neonCyan.opacity(0.3), lineWidth: 1)
+                )
+        )
+        .neonGlow(color: NeonColors.neonCyan, radius: 6, intensity: 0.4)
     }
 }
 
@@ -720,6 +748,325 @@ struct PressedButtonStyle: ButtonStyle {
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
+
+/// ネオン情報アイテム
+struct NeonInfoItem: View {
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.7))
+            Text(value)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(color)
+                .neonGlow(color: color, radius: 4, intensity: 0.8)
+        }
+    }
+}
+
+/// ネオン次ピース表示
+struct NeonNextPieceView: View {
+    let nextPiece: Polyomino?
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("次のピース")
+                .font(.caption)
+                .foregroundColor(NeonColors.neonCyan)
+                .neonGlow(color: NeonColors.neonCyan, radius: 4)
+
+            RoundedRectangle(cornerRadius: 8)
+                .fill(NeonColors.spaceBlack.opacity(0.8))
+                .frame(width: 60, height: 60)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(NeonColors.neonCyan, lineWidth: 1)
+                )
+                .overlay(
+                    Group {
+                        if let piece = nextPiece {
+                            NeonNextPiecePreview(piece: piece)
+                        } else {
+                            Text("?")
+                                .font(.title)
+                                .foregroundColor(NeonColors.neonPink)
+                                .pulsingNeon(color: NeonColors.neonPink)
+                        }
+                    }
+                )
+                .neonGlow(color: NeonColors.neonCyan, radius: 6, intensity: 0.6)
+        }
+    }
+}
+
+/// ネオン次ピースプレビュー
+struct NeonNextPiecePreview: View {
+    let piece: Polyomino
+
+    var body: some View {
+        let cellSize: CGFloat = 8
+
+        ForEach(Array(piece.cells.enumerated()), id: \.offset) { _, cell in
+            Rectangle()
+                .fill(NeonColors.tetrisCyan)
+                .frame(width: cellSize, height: cellSize)
+                .overlay(
+                    Rectangle()
+                        .stroke(NeonColors.neonCyan, lineWidth: 0.5)
+                )
+                .neonGlow(color: NeonColors.tetrisCyan, radius: 2, intensity: 0.8)
+                .position(
+                    x: CGFloat(cell.x) * cellSize + cellSize / 2 + 30,
+                    y: CGFloat(cell.y) * cellSize + cellSize / 2 + 30
+                )
+        }
+    }
+}
+
+/// ネオンレベルインジケーター
+struct NeonLevelIndicator: View {
+    let level: Int
+    let progress: Double
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("レベル \(level)")
+                .font(.caption)
+                .foregroundColor(NeonColors.neonYellow)
+                .neonGlow(color: NeonColors.neonYellow, radius: 4)
+
+            VStack(spacing: 4) {
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(NeonColors.spaceBlack.opacity(0.6))
+                        .frame(height: 4)
+                        .cornerRadius(2)
+                    
+                    Rectangle()
+                        .fill(NeonColors.neonYellow)
+                        .frame(width: CGFloat(max(0.0, min(1.0, progress))) * 50, height: 4)
+                        .cornerRadius(2)
+                        .neonGlow(color: NeonColors.neonYellow, radius: 3)
+                }
+                .frame(width: 50)
+
+                Text("\(Int(progress * 10))/10")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.6))
+            }
+        }
+    }
+}
+
+/// ネオン統計表示
+struct NeonStatsView: View {
+    let gameState: GameState
+
+    var body: some View {
+        VStack(spacing: 16) {
+            NeonStatItem(
+                title: "高さ",
+                value: "\(gameState.getColumnHeights().max() ?? 0)",
+                color: NeonColors.neonOrange
+            )
+
+            NeonStatItem(
+                title: "穴",
+                value: "\(gameState.getHoles())",
+                color: NeonColors.neonPurple
+            )
+        }
+    }
+}
+
+/// ネオン統計アイテム
+struct NeonStatItem: View {
+    let title: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.6))
+
+            Text(value)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(color)
+                .neonGlow(color: color, radius: 4, intensity: 0.8)
+        }
+    }
+}
+
+/// ネオンゲームコントロール
+struct NeonGameControlsView: View {
+    @ObservedObject var gameCore: GameCore
+    
+    private func playButtonSound() {
+        AudioManager.shared.playButtonSound()
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 20) {
+                // 左移動
+                NeonGameButton(
+                    icon: "arrowshape.left.fill",
+                    action: {
+                        playButtonSound()
+                        _ = gameCore.movePiece(dx: -1)
+                    },
+                    gradient: LinearGradient(colors: [NeonColors.neonPink, NeonColors.neonMagenta], startPoint: .leading, endPoint: .trailing),
+                    glowColor: NeonColors.neonPink
+                )
+
+                Spacer()
+
+                // 回転
+                NeonGameButton(
+                    icon: "arrow.clockwise",
+                    action: {
+                        playButtonSound()
+                        _ = gameCore.rotatePiece()
+                    },
+                    gradient: LinearGradient(colors: [NeonColors.neonCyan, NeonColors.neonAqua], startPoint: .leading, endPoint: .trailing),
+                    glowColor: NeonColors.neonCyan
+                )
+
+                Spacer()
+
+                // 右移動
+                NeonGameButton(
+                    icon: "arrowshape.right.fill",
+                    action: {
+                        playButtonSound()
+                        _ = gameCore.movePiece(dx: 1)
+                    },
+                    gradient: LinearGradient(colors: [NeonColors.neonPink, NeonColors.neonMagenta], startPoint: .leading, endPoint: .trailing),
+                    glowColor: NeonColors.neonPink
+                )
+            }
+
+            HStack(spacing: 20) {
+                // ソフトドロップ
+                NeonSoftDropButton(gameCore: gameCore)
+
+                Spacer()
+
+                // ハードドロップ
+                NeonGameButton(
+                    icon: "arrowshape.down.fill",
+                    action: {
+                        playButtonSound()
+                        gameCore.hardDrop()
+                    },
+                    gradient: LinearGradient(colors: [NeonColors.neonYellow, NeonColors.electricYellow], startPoint: .leading, endPoint: .trailing),
+                    glowColor: NeonColors.neonYellow
+                )
+
+                Spacer()
+
+                // ポーズ/再開
+                NeonGameButton(
+                    icon: gameCore.isGameRunning ? "pause.fill" : "play.fill",
+                    action: {
+                        playButtonSound()
+                        if gameCore.isGameRunning {
+                            gameCore.pauseGame()
+                        } else {
+                            gameCore.resumeGame()
+                        }
+                    },
+                    gradient: LinearGradient(colors: [NeonColors.neonPurple, NeonColors.deepPurple], startPoint: .leading, endPoint: .trailing),
+                    glowColor: NeonColors.neonPurple
+                )
+            }
+        }
+    }
+}
+
+/// ネオンゲームボタン
+struct NeonGameButton: View {
+    let icon: String
+    let action: () -> Void
+    let gradient: LinearGradient
+    let glowColor: Color
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(.white)
+                .frame(width: 60, height: 60)
+                .background(
+                    RoundedRectangle(cornerRadius: 30)
+                        .fill(gradient)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 30)
+                                .stroke(glowColor, lineWidth: 1)
+                        )
+                )
+                .neonGlow(color: glowColor, radius: 8, intensity: 1.0)
+        }
+        .buttonStyle(NeonPressedButtonStyle())
+    }
+}
+
+/// ネオンソフトドロップボタン
+struct NeonSoftDropButton: View {
+    @ObservedObject var gameCore: GameCore
+    
+    private func playButtonSound() {
+        AudioManager.shared.playButtonSound()
+    }
+
+    var body: some View {
+        Button("↓") {
+            playButtonSound()
+            _ = gameCore.movePiece(dx: 0, dy: 1)
+        }
+        .font(.title2)
+        .foregroundColor(.white)
+        .frame(width: 60, height: 60)
+        .background(
+            RoundedRectangle(cornerRadius: 30)
+                .fill(LinearGradient(colors: [NeonColors.neonGreen, NeonColors.acidGreen], startPoint: .leading, endPoint: .trailing))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30)
+                        .stroke(NeonColors.neonGreen, lineWidth: 1)
+                )
+        )
+        .neonGlow(color: NeonColors.neonGreen, radius: 8, intensity: 1.0)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    gameCore.startSoftDrop()
+                }
+                .onEnded { _ in
+                    gameCore.stopSoftDrop()
+                }
+        )
+        .buttonStyle(NeonPressedButtonStyle())
+    }
+}
+
+/// ネオンボタンプレススタイル
+struct NeonPressedButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .brightness(configuration.isPressed ? 0.2 : 0.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
 
 #Preview {
     GameView(

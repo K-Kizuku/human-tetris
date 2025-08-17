@@ -18,7 +18,7 @@ struct CaptureView: View, GamePieceProvider {
     
     // 音声管理
     private func playMenuBGM() {
-        AudioManager.shared.playMenuBGM()
+        AudioManager.shared.playMenuBGM()  // 実際にはSFX（ループなし）
     }
     
     private func playButtonSound() {
@@ -97,13 +97,16 @@ struct CaptureView: View, GamePieceProvider {
                     ZStack {
                         Grid4x3Overlay(
                             cameraWidth: roiFrame.width,
-                            cameraHeight: roiFrame.height
+                            cameraHeight: roiFrame.height,
+                            gridResult: quantizationProcessor.currentGrid.pieceGenerationResult
                         )
 
                         OccupancyHeatmap(
                             grid: quantizationProcessor.currentGrid,
                             cameraWidth: roiFrame.width,
-                            cameraHeight: roiFrame.height
+                            cameraHeight: roiFrame.height,
+                            occupancyRates: quantizationProcessor.occupancyRates,
+                            showOccupancyText: false  // リリース時はfalse、デバッグ時はtrue
                         )
                     }
 
@@ -143,12 +146,47 @@ struct CaptureView: View, GamePieceProvider {
                         .padding(.horizontal)
 
                         if quantizationProcessor.isStable && currentIoU >= 0.6 {
-                            Button("ピース確定") {
-                                playButtonSound()
-                                confirmPiece()
+                            VStack(spacing: 8) {
+                                Text("✅ ピース検出完了!")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                    .fontWeight(.semibold)
+                                
+                                // マス数状態も表示
+                                Text(quantizationProcessor.currentGrid.pieceGenerationResult.statusMessage)
+                                    .font(.caption2)
+                                    .foregroundColor(getStatusColor(quantizationProcessor.currentGrid.pieceGenerationResult))
+                                
+                                Button("ピース確定") {
+                                    playButtonSound()
+                                    confirmPiece()
+                                }
+                                .buttonStyle(PrimaryButtonStyle())
                             }
-                            .buttonStyle(PrimaryButtonStyle())
                             .animation(.bouncy, value: quantizationProcessor.isStable)
+                        } else {
+                            // 進捗表示
+                            VStack(spacing: 4) {
+                                // マス数状態表示
+                                Text(quantizationProcessor.currentGrid.pieceGenerationResult.statusMessage)
+                                    .font(.caption2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(getStatusColor(quantizationProcessor.currentGrid.pieceGenerationResult))
+                                
+                                HStack {
+                                    Text(quantizationProcessor.isStable ? "✅" : "⏳")
+                                    Text("安定性: \(quantizationProcessor.isStable ? "達成" : "待機中")")
+                                        .font(.caption2)
+                                        .foregroundColor(quantizationProcessor.isStable ? .green : .orange)
+                                }
+                                
+                                HStack {
+                                    Text(currentIoU >= 0.6 ? "✅" : "⏳")
+                                    Text("一致度: \(currentIoU >= 0.6 ? "達成" : String(format: "%.1f%%", currentIoU * 100))")
+                                        .font(.caption2)
+                                        .foregroundColor(currentIoU >= 0.6 ? .green : .orange)
+                                }
+                            }
                         }
 
                         #if targetEnvironment(simulator)
@@ -216,6 +254,15 @@ struct CaptureView: View, GamePieceProvider {
 
     private func setupProcessors() {
         visionProcessor.delegate = self
+    }
+    
+    private func getStatusColor(_ result: PieceGenerationResult) -> Color {
+        switch result {
+        case .valid:
+            return .green
+        case .tooFew, .tooMany:
+            return .red
+        }
     }
 
     private func updateROIFrame() {
@@ -428,8 +475,6 @@ struct CaptureView: View, GamePieceProvider {
         return StandardTetrominos.random()
     }
 }
-
-// MultiCameraManagerDelegate は削除 - ARKit一本化により不要
 
 // MARK: - FacialExpressionManagerDelegate
 

@@ -19,6 +19,7 @@ class GameCore: ObservableObject {
     @Published var isSoftDropping: Bool = false
     @Published var currentDropSpeedMultiplier: Double = 1.0  // 表情による落下速度倍率
     @Published var isAnimating: Bool = false  // アニメーション中の状態
+    @Published var gameOver: Bool = false  // ゲームオーバー状態を独立して管理
     
     // 緊張感演出用
     @Published var tensionLevel: TensionLevel = .calm
@@ -71,6 +72,7 @@ class GameCore: ObservableObject {
         isGameRunning = true
         isAnimating = false
         waitingForNextPiece = false
+        gameOver = false  // ゲームオーバー状態をリセット
         
         // 緊張状態をリセット
         tensionLevel = .calm
@@ -93,9 +95,22 @@ class GameCore: ObservableObject {
     }
 
     func endGame() {
+        print("GameCore: Ending game - final score: \(gameState.score), lines: \(gameState.linesCleared)")
         isGameRunning = false
         stopDropTimer()
-        gameState.gameOver = true
+        waitingForNextPiece = false
+        isAnimating = false
+        
+        // @Published変数を使用してゲームオーバー状態を確実に通知
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            print("GameCore: Before update - gameOver: \(self.gameOver)")
+            self.gameState.gameOver = true
+            self.gameOver = true
+            print("GameCore: After update - gameState.gameOver: \(self.gameState.gameOver), gameOver: \(self.gameOver)")
+            // objectWillChangeを明示的に送信してSwiftUIに更新を通知
+            self.objectWillChange.send()
+        }
     }
 
     // MARK: - 改善されたタイマー管理
@@ -168,7 +183,14 @@ class GameCore: ObservableObject {
 
         print("GameCore: Calculated spawn position (\(spawnX), \(spawnY))")
 
-        if gameState.isValidPosition(piece: piece, at: (x: spawnX, y: spawnY)) {
+        // ゲームオーバー条件を先にチェック
+        if gameState.checkGameOver() {
+            print("GameCore: Game over detected - top line blocked")
+            endGame()
+            return
+        }
+        
+        if gameState.canSpawnPiece(piece, at: (x: spawnX, y: spawnY)) {
             print("GameCore: Position is valid, spawning piece")
             gameState.currentPiece = piece
             gameState.currentPosition = (x: spawnX, y: spawnY)
@@ -176,14 +198,14 @@ class GameCore: ObservableObject {
             isAnimating = false  // アニメーション状態をリセット
             print("GameCore: Piece spawned successfully")
         } else {
-            print("GameCore: Position is invalid, ending game")
+            print("GameCore: Cannot spawn piece - position blocked, ending game")
             endGame()
         }
     }
 
     func requestNextPiece() {
         // ゲームが終了している場合は要求しない
-        guard isGameRunning && !gameState.gameOver else {
+        guard isGameRunning && !gameOver else {
             print("GameCore: Game not running or over, skipping piece request")
             return
         }
@@ -193,7 +215,7 @@ class GameCore: ObservableObject {
 
         pieceQueue?.getNextPiece { [weak self] piece in
             DispatchQueue.main.async {
-                guard let self = self, self.isGameRunning && !self.gameState.gameOver else {
+                guard let self = self, self.isGameRunning && !self.gameOver else {
                     print("GameCore: Game ended while waiting for piece")
                     return
                 }
@@ -277,7 +299,7 @@ class GameCore: ObservableObject {
     }
 
     func dropCurrentPiece() {
-        guard isGameRunning && !gameState.gameOver else { 
+        guard isGameRunning && !gameOver else { 
             print("GameCore: Cannot drop piece - game not running or over")
             return 
         }
@@ -334,9 +356,16 @@ class GameCore: ObservableObject {
         
         print("GameCore: Locking piece at position (\(gameState.currentPosition.x), \(gameState.currentPosition.y))")
 
-        // ピースを即座に配置
+        // ピースを即座に配置（placePiece内でゲームオーバーチェックが実行される）
         gameState.placePiece(piece: piece, at: gameState.currentPosition)
         gameState.currentPiece = nil
+        
+        // ゲームオーバーチェック
+        if gameState.gameOver {
+            print("GameCore: Game over detected after piece placement")
+            endGame()
+            return
+        }
         
         // ライン消去チェック
         let linesCleared = gameState.clearLines()
@@ -374,7 +403,7 @@ class GameCore: ObservableObject {
         updateTensionLevel()
         
         // 次のピースを要求
-        if isGameRunning && !gameState.gameOver {
+        if isGameRunning && !gameOver {
             print("GameCore: Requesting next piece after lock")
             requestNextPiece()
         } else {
@@ -389,6 +418,14 @@ class GameCore: ObservableObject {
         let lineBonus: [Int] = [0, 1, 3, 5, 7]
         let bonus = lineBonus[min(linesCleared, lineBonus.count - 1)]
         gameState.score += bonus * 100 * gameState.level
+    }
+    
+    // MARK: - ピース生成失敗ペナルティ
+    
+    func applyPieceFailurePenalty() {
+        let penalty = 5
+        gameState.score = max(0, gameState.score - penalty)
+        print("GameCore: Applied piece failure penalty: -\(penalty) points, new score: \(gameState.score)")
     }
 
     func getGhostPosition() -> (x: Int, y: Int)? {
@@ -578,7 +615,7 @@ enum TensionLevel: String, CaseIterable {
 // MARK: - Audio System (Temporary in GameCore)
 enum AudioFile: String {
     case gameBGM = "bgm2"
-    case menuBGM = "dodo~n"  
+    case menuBGM = "dodo~n"  // 実際にはSFX（ループなし）
     case scoreSound = "charge"
     case buttonSound = "do~un"
 }
@@ -691,7 +728,7 @@ class AudioManager: ObservableObject {
     }
     
     func playGameBGM() { playBGM(.gameBGM) }
-    func playMenuBGM() { playSFX(.menuBGM) }
+    func playMenuBGM() { playSFX(.menuBGM) }  // menuBGMは実際にはSFX（ループなし）
     func playScoreSound() { playSFX(.scoreSound) }
     func playButtonSound() { playSFX(.buttonSound) }
     

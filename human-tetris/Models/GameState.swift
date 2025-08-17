@@ -52,6 +52,22 @@ struct GameState {
         return true
     }
     
+    // ゲームオーバー条件をチェック（最上部の行にブロックがある場合）
+    func checkGameOver() -> Bool {
+        // 最上部の行（y=0）にブロックがあるかチェック
+        for x in 0..<GameState.boardWidth {
+            if case .filled = board[0][x] {
+                return true
+            }
+        }
+        return false
+    }
+    
+    // スポーン位置でのゲームオーバーチェック（新しいピースが配置できない場合）
+    func canSpawnPiece(_ piece: Polyomino, at position: (x: Int, y: Int)) -> Bool {
+        return isValidPosition(piece: piece, at: position)
+    }
+    
     mutating func placePiece(piece: Polyomino, at position: (x: Int, y: Int), color: Int = 1) {
         for cell in piece.cells {
             let boardX = position.x + cell.x
@@ -61,6 +77,11 @@ struct GameState {
                boardY >= 0 && boardY < GameState.boardHeight {
                 board[boardY][boardX] = .filled(color: color)
             }
+        }
+        
+        // ピース配置後にゲームオーバー条件をチェック
+        if checkGameOver() {
+            gameOver = true
         }
     }
     

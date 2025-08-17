@@ -26,56 +26,81 @@ struct UnifiedGameView: View, GamePieceProvider {
     @State private var isGameActive = false
     @State private var showSuccessHighlight = false
     @State private var showFailureHighlight = false
+    @State private var showResultScreen = false
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color.black.ignoresSafeArea()
+                // ネオン宇宙背景
+                NeonColors.mainBackgroundGradient
+                    .ignoresSafeArea()
+                
+                // 軽量パーティクル背景（ゲーム中は控えめ）
+                NeonGameParticleBackground()
 
                 VStack(spacing: 4) {
-                    // Top section - Camera + Countdown (中央配置)
+                    // Top section - ネオンカメラセクション (高さ比率調整)
                     HStack {
                         Spacer()
                         cameraSection(geometry: geometry)
-                            .frame(height: geometry.size.height * 0.22)  // 25% -> 22%に縮小
+                            .frame(height: min(geometry.size.height * 0.25, 200))
                         Spacer()
                     }
 
-                    // Bottom section - Game Board
+                    // Bottom section - ネオンゲームボード (高さ比率調整)
                     gameBoardSection(geometry: geometry)
-                        .frame(height: geometry.size.height * 0.78)  // 75% -> 78%に拡大
+                        .frame(height: geometry.size.height * 0.75)
                 }
-                .padding(.horizontal, 6)  // パディングも縮小
+                .padding(.horizontal, 6)
 
-                // Flash effect overlay
+                // ネオンフラッシュエフェクト
                 if showFlashEffect {
                     Rectangle()
-                        .fill(Color.white.opacity(0.8))
+                        .fill(
+                            RadialGradient(
+                                colors: [NeonColors.neonCyan.opacity(0.8), Color.clear],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: 400
+                            )
+                        )
                         .ignoresSafeArea()
                         .animation(.easeInOut(duration: 0.2), value: showFlashEffect)
                 }
 
-                // Success/Failure highlights
+                // ネオン成功/失敗ハイライト
                 if showSuccessHighlight {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.green, lineWidth: 4)
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(NeonColors.neonGreen, lineWidth: 3)
                         .frame(
                             width: geometry.size.width * 0.8, height: geometry.size.height * 0.22
                         )
                         .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.125)
+                        .neonGlow(color: NeonColors.neonGreen, radius: 20, intensity: 1.2)
                         .animation(.bouncy, value: showSuccessHighlight)
                 }
 
                 if showFailureHighlight {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.red, lineWidth: 4)
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(NeonColors.neonOrange, lineWidth: 3)
                         .frame(
                             width: geometry.size.width * 0.8, height: geometry.size.height * 0.22
                         )
                         .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.125)
+                        .neonGlow(color: NeonColors.neonOrange, radius: 20, intensity: 1.2)
                         .animation(.bouncy, value: showFailureHighlight)
+                }
+                
+                // フルスクリーン result.png 表示
+                if showResultScreen {
+                    NeonResultFullScreenView {
+                        showResultScreen = false
+                    }
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                    .zIndex(1000)
                 }
             }
         }
@@ -169,13 +194,14 @@ struct UnifiedGameView: View, GamePieceProvider {
                     countdownOverlay
                 }
             }
-            .frame(height: geometry.size.height * 0.25)  // カメラ部分の高さを維持
-            .frame(width: calculateCameraWidth(for: geometry))  // デバイスアスペクト比に基づく幅
-            .cornerRadius(8)
+            .frame(height: geometry.size.height * 0.25)
+            .frame(width: calculateCameraWidth(for: geometry))
+            .cornerRadius(12)
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(NeonColors.neonCyan, lineWidth: 2)
             )
+            .neonGlow(color: NeonColors.neonCyan, radius: 12, intensity: 0.8)
 
             // 表情認識オーバーレイを左上に配置
             HStack {
@@ -188,64 +214,94 @@ struct UnifiedGameView: View, GamePieceProvider {
                     isARKitSupported: facialExpressionManager.isARKitSupported
                 )
                 .frame(maxWidth: 150)
-                .shadow(color: .cyan, radius: 5) // ネオングロー効果
+                .neonGlow(color: NeonColors.neonCyan, radius: 8, intensity: 0.6)
                 
                 Spacer()
             }
             .padding(.horizontal, 6)
             
-            // Compact control section
-            HStack(spacing: 6) {
-                // IoU indicator
-                HStack(spacing: 2) {
+            // ネオンコンパクトコントロールセクション
+            HStack(spacing: 8) {
+                // IoU indicator - ネオンスタイル
+                HStack(spacing: 3) {
                     Text("IoU:")
-                        .foregroundColor(.cyan)
+                        .foregroundColor(NeonColors.neonCyan)
                         .font(.caption2)
-                        .shadow(color: .cyan, radius: 2) // ネオングロー
+                        .fontWeight(.semibold)
+                        .neonGlow(color: NeonColors.neonCyan, radius: 3, intensity: 0.8)
+                    
                     ProgressView(value: max(0.0, min(1.0, Double(currentIoU))), total: 1.0)
-                        .tint(.green)
-                        .frame(width: 30, height: 2)
-                        .shadow(color: .green, radius: 3) // ネオングロー
+                        .tint(NeonColors.neonGreen)
+                        .frame(width: 35, height: 3)
+                        .neonGlow(color: NeonColors.neonGreen, radius: 4, intensity: 0.9)
+                    
                     Text(String(format: "%.2f", currentIoU))
-                        .foregroundColor(.cyan)
+                        .foregroundColor(NeonColors.neonCyan)
                         .font(.caption2)
-                        .shadow(color: .cyan, radius: 2) // ネオングロー
+                        .fontWeight(.bold)
+                        .neonGlow(color: NeonColors.neonCyan, radius: 3, intensity: 0.8)
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(NeonColors.spaceBlack.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(NeonColors.neonCyan.opacity(0.3), lineWidth: 1)
+                        )
+                )
 
                 Spacer()
 
-                // Game start/next piece button
+                // Game start/next piece button - ネオンスタイル
                 if !isGameActive {
                     Button("開始") {
                         startGame()
                     }
-                    .buttonStyle(CompactButtonStyle())
+                    .buttonStyle(NeonCompactButtonStyle())
                 } else if !countdownManager.isCountingDown {
                     Button("次") {
                         requestNextPiece()
                     }
-                    .buttonStyle(CompactButtonStyle())
+                    .buttonStyle(NeonCompactButtonStyle())
                 }
 
                 Spacer()
 
-                // Stability indicator
-                HStack(spacing: 2) {
+                // Stability indicator - ネオンスタイル
+                HStack(spacing: 3) {
                     Text("安定:")
-                        .foregroundColor(.purple)
+                        .foregroundColor(NeonColors.neonPurple)
                         .font(.caption2)
-                        .shadow(color: .purple, radius: 2) // ネオングロー
+                        .fontWeight(.semibold)
+                        .neonGlow(color: NeonColors.neonPurple, radius: 3, intensity: 0.8)
+                    
                     ProgressView(
                         value: max(0.0, min(1.0, Double(captureState.stableMs) / 1000.0)),
                         total: 1.0
                     )
-                    .tint(captureState.isStable ? .green : .orange)
-                    .frame(width: 30, height: 2)
-                    .shadow(color: captureState.isStable ? .green : .orange, radius: 3) // ネオングロー
+                    .tint(captureState.isStable ? NeonColors.neonGreen : NeonColors.neonOrange)
+                    .frame(width: 35, height: 3)
+                    .neonGlow(
+                        color: captureState.isStable ? NeonColors.neonGreen : NeonColors.neonOrange, 
+                        radius: 4, 
+                        intensity: 0.9
+                    )
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(NeonColors.spaceBlack.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(NeonColors.neonPurple.opacity(0.3), lineWidth: 1)
+                        )
+                )
             }
-            .padding(.horizontal, 6)
-            .frame(height: 25)  // 固定高さを設定
+            .padding(.horizontal, 8)
+            .frame(height: 32)  // 少し高さを調整
 
             #if targetEnvironment(simulator)
                 if !facialExpressionManager.isTracking {
@@ -266,15 +322,25 @@ struct UnifiedGameView: View, GamePieceProvider {
         let cellHeight = cameraHeight / 4
 
         ZStack {
-            ForEach(0..<piece.cells.count, id: \.self) { index in
-                let cell = piece.cells[index]
-                Rectangle()
-                    .fill(Color.blue.opacity(0.3))
-                    .frame(width: cellWidth, height: cellHeight)
+            ForEach(Array(piece.cells.enumerated()), id: \.offset) { index, cell in
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(
+                        LinearGradient(
+                            colors: [NeonColors.neonCyan.opacity(0.6), NeonColors.deepPurple.opacity(0.4)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(NeonColors.neonCyan, lineWidth: 1)
+                    )
+                    .frame(width: cellWidth * 0.9, height: cellHeight * 0.9)
                     .position(
                         x: (CGFloat(cell.x) + 0.5) * cellWidth,
                         y: (CGFloat(cell.y) + 0.5) * cellHeight
                     )
+                    .neonGlow(color: NeonColors.neonCyan, radius: 3, intensity: 0.8)
             }
         }
     }
@@ -282,26 +348,42 @@ struct UnifiedGameView: View, GamePieceProvider {
     @ViewBuilder
     private var countdownOverlay: some View {
         ZStack {
+            // ネオンカウントダウン背景
             Circle()
-                .fill(Color.black.opacity(0.7))
-                .frame(width: 80, height: 80)
+                .fill(NeonColors.spaceBlack.opacity(0.9))
+                .frame(width: 90, height: 90)
+                .overlay(
+                    Circle()
+                        .stroke(NeonColors.neonPink, lineWidth: 2)
+                )
+                .neonGlow(color: NeonColors.neonPink, radius: 15, intensity: 1.0)
 
-            VStack {
+            VStack(spacing: 4) {
                 if countdownManager.currentCount > 0 {
                     Text("\(countdownManager.currentCount)")
-                        .font(.system(size: 36, weight: .bold))
+                        .font(.system(size: 40, weight: .black, design: .rounded))
                         .foregroundColor(.white)
+                        .neonGlow(color: NeonColors.neonCyan, radius: 8, intensity: 1.2)
                 } else {
                     Text("📸")
-                        .font(.system(size: 36))
+                        .font(.system(size: 40))
+                        .neonGlow(color: NeonColors.neonYellow, radius: 8, intensity: 1.0)
                 }
 
-                // Progress ring
+                // ネオンプログレスリング
                 Circle()
                     .trim(from: 0.0, to: CGFloat(countdownManager.progress))
-                    .stroke(Color.green, lineWidth: 4)
-                    .frame(width: 60, height: 60)
+                    .stroke(
+                        LinearGradient(
+                            colors: [NeonColors.neonGreen, NeonColors.neonCyan],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        lineWidth: 5
+                    )
+                    .frame(width: 65, height: 65)
                     .rotationEffect(.degrees(-90))
+                    .neonGlow(color: NeonColors.neonGreen, radius: 6, intensity: 0.8)
             }
         }
     }
@@ -311,85 +393,133 @@ struct UnifiedGameView: View, GamePieceProvider {
     @ViewBuilder
     private func gameBoardSection(geometry: GeometryProxy) -> some View {
         VStack(spacing: 4) {
-            // Score display - more compact for vertical layout
-            HStack {
-                VStack(alignment: .leading, spacing: 1) {
+            // ネオンスコア表示セクション (コンパクト化)
+            HStack(spacing: 8) {
+                // 左側スコア情報
+                VStack(alignment: .leading, spacing: 2) {
                     Text("スコア: \(gameCore.gameState.score)")
-                        .foregroundColor(.yellow)
+                        .foregroundColor(NeonColors.neonYellow)
                         .font(.caption)
-                        .shadow(color: .yellow, radius: 3) // ネオングロー
+                        .fontWeight(.bold)
+                        .neonGlow(color: NeonColors.neonYellow, radius: 4, intensity: 0.9)
+                    
                     Text("ライン: \(gameCore.gameState.linesCleared)")
-                        .foregroundColor(.cyan)
+                        .foregroundColor(NeonColors.neonCyan)
                         .font(.caption2)
-                        .shadow(color: .cyan, radius: 2) // ネオングロー
+                        .fontWeight(.semibold)
+                        .neonGlow(color: NeonColors.neonCyan, radius: 3, intensity: 0.7)
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(NeonColors.spaceBlack.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(NeonColors.neonYellow.opacity(0.3), lineWidth: 1)
+                        )
+                )
 
                 Spacer()
 
-                VStack(alignment: .center, spacing: 1) {
+                // 中央レベル・多様性情報
+                VStack(alignment: .center, spacing: 2) {
                     Text("レベル: \(gameCore.gameState.level)")
-                        .foregroundColor(.green)
+                        .foregroundColor(NeonColors.neonGreen)
                         .font(.caption)
-                        .shadow(color: .green, radius: 3) // ネオングロー
+                        .fontWeight(.bold)
+                        .neonGlow(color: NeonColors.neonGreen, radius: 4, intensity: 0.9)
+                    
                     Text("多様性: \(String(format: "%.1f", shapeHistoryManager.diversityScore))")
-                        .foregroundColor(.purple)
+                        .foregroundColor(NeonColors.neonPurple)
                         .font(.caption2)
-                        .shadow(color: .purple, radius: 2) // ネオングロー
+                        .fontWeight(.semibold)
+                        .neonGlow(color: NeonColors.neonPurple, radius: 3, intensity: 0.7)
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(NeonColors.spaceBlack.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(NeonColors.neonGreen.opacity(0.3), lineWidth: 1)
+                        )
+                )
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 1) {
+                // 右側コントロールボタン
+                VStack(alignment: .trailing, spacing: 3) {
                     Button(isGameActive ? "一時停止" : "再開") {
                         toggleGamePause()
                     }
-                    .buttonStyle(CompactButtonStyle())
+                    .buttonStyle(NeonMicroButtonStyle())
 
                     Button("戻る") {
                         dismiss()
                     }
-                    .buttonStyle(CompactButtonStyle())
+                    .buttonStyle(NeonMicroButtonStyle())
+                    
+                    Button("GameOver") {
+                        showResultScreen = true
+                    }
+                    .buttonStyle(NeonMicroButtonStyle(color: NeonColors.neonOrange))
                 }
             }
             .padding(.horizontal, 6)
-            .frame(height: 40)  // 固定高さを設定
+            .frame(height: 40)
 
-            // Game board - adjusted for better layout
+            // Game board - サイズ調整で重複防止
             GameBoardView(
                 gameCore: gameCore,
                 targetSize: CGSize(
-                    width: geometry.size.width * 0.85, height: geometry.size.height * 0.45)
+                    width: geometry.size.width * 0.82, 
+                    height: min(geometry.size.height * 0.40, 280)
+                )
             )
-            .frame(maxHeight: geometry.size.height * 0.45)
+            .frame(maxHeight: min(geometry.size.height * 0.40, 280))
 
-            // Game controls for vertical layout - more compact
-            VStack(spacing: 4) {
-                // 上段：左、回転、右
-                HStack(spacing: 16) {
-                    Button("←") {
-                        _ = gameCore.movePiece(dx: -1)
+            // 改良されたネオンゲームコントロール - コンパクトレイアウト
+            VStack(spacing: 8) {
+                // 背景カード
+                VStack(spacing: 6) {
+                    // 上段：回転ボタン
+                    HStack {
+                        Spacer()
+                        Button("🔄") {
+                            _ = gameCore.rotatePiece()
+                        }
+                        .buttonStyle(NeonCompactRotateButtonStyle())
+                        Spacer()
                     }
-                    .buttonStyle(CompactControlButtonStyle())
-
-                    Button("↻") {
-                        _ = gameCore.rotatePiece()
+                    
+                    // 中段：左右移動 + ハードドロップ
+                    HStack(spacing: geometry.size.width * 0.15) {
+                        // 左移動
+                        Button("◀") {
+                            _ = gameCore.movePiece(dx: -1)
+                        }
+                        .buttonStyle(NeonCompactMoveButtonStyle(color: NeonColors.neonBlue))
+                        
+                        // ハードドロップ
+                        Button("⚡") {
+                            gameCore.hardDrop()
+                        }
+                        .buttonStyle(NeonCompactHardDropButtonStyle())
+                        
+                        // 右移動
+                        Button("▶") {
+                            _ = gameCore.movePiece(dx: 1)
+                        }
+                        .buttonStyle(NeonCompactMoveButtonStyle(color: NeonColors.neonBlue))
                     }
-                    .buttonStyle(CompactControlButtonStyle())
-
-                    Button("→") {
-                        _ = gameCore.movePiece(dx: 1)
-                    }
-                    .buttonStyle(CompactControlButtonStyle())
-                }
-
-                // 下段：ソフトドロップとハードドロップ
-                HStack(spacing: 16) {
-                    // ソフトドロップボタン（長押し対応）
-                    Button("↓") {
-                        // タップ時は1回だけ下に移動
+                    
+                    // 下段：ソフトドロップ
+                    Button("⬇") {
                         _ = gameCore.movePiece(dx: 0, dy: 1)
                     }
-                    .buttonStyle(CompactSoftDropButtonStyle())
+                    .buttonStyle(NeonCompactSoftDropButtonStyle())
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { _ in
@@ -399,18 +529,27 @@ struct UnifiedGameView: View, GamePieceProvider {
                                 gameCore.stopSoftDrop()
                             }
                     )
-
-                    Spacer()
-
-                    // ハードドロップボタン
-                    Button("⬇") {
-                        gameCore.hardDrop()
-                    }
-                    .buttonStyle(CompactHardDropButtonStyle())
                 }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            RadialGradient(
+                                colors: [NeonColors.deepSpace.opacity(0.4), NeonColors.spaceBlack.opacity(0.9)],
+                                center: .center,
+                                startRadius: 20,
+                                endRadius: 100
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(NeonColors.neonCyan.opacity(0.4), lineWidth: 1)
+                        )
+                )
+                .neonGlow(color: NeonColors.neonCyan, radius: 6, intensity: 0.3)
             }
-            .padding(.top, 4)
-            .frame(height: 80)  // 固定高さを設定
+            .frame(height: min(geometry.size.height * 0.25, 100))
+            .padding(.horizontal, 8)
         }
     }
 
@@ -700,9 +839,245 @@ extension UnifiedGameView: VisionProcessorDelegate {
     }
 }
 
-// MARK: - Button Styles
+// MARK: - ネオンボタンスタイル
 
-// MARK: - Compact Button Styles for Better Layout
+/// ネオンコンパクトボタンスタイル
+struct NeonCompactButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(NeonColors.buttonGradient)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(NeonColors.neonPink, lineWidth: 1)
+                    )
+            )
+            .neonGlow(
+                color: NeonColors.neonPink,
+                radius: configuration.isPressed ? 4 : 8,
+                intensity: configuration.isPressed ? 0.6 : 1.0
+            )
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .brightness(configuration.isPressed ? 0.1 : 0.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+/// ネオンマイクロボタンスタイル
+struct NeonMicroButtonStyle: ButtonStyle {
+    let color: Color
+    
+    init(color: Color = NeonColors.neonPurple) {
+        self.color = color
+    }
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption2)
+            .fontWeight(.medium)
+            .foregroundColor(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.7), color.opacity(0.5)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(color.opacity(0.8), lineWidth: 0.5)
+                    )
+            )
+            .neonGlow(
+                color: color,
+                radius: configuration.isPressed ? 2 : 4,
+                intensity: configuration.isPressed ? 0.4 : 0.7
+            )
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+/// コンパクトネオン回転ボタンスタイル
+struct NeonCompactRotateButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title2)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .frame(width: 50, height: 40)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        LinearGradient(
+                            colors: [NeonColors.neonPurple.opacity(0.9), NeonColors.deepPurple.opacity(0.7)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(NeonColors.neonPurple, lineWidth: 1.5)
+                    )
+            )
+            .neonGlow(
+                color: NeonColors.neonPurple,
+                radius: configuration.isPressed ? 6 : 10,
+                intensity: configuration.isPressed ? 0.8 : 1.0
+            )
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .brightness(configuration.isPressed ? 0.2 : 0.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+/// コンパクトネオン移動ボタンスタイル
+struct NeonCompactMoveButtonStyle: ButtonStyle {
+    let color: Color
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title3)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .frame(width: 45, height: 35)
+            .background(
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.8), color.opacity(0.6)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(color, lineWidth: 1.5)
+                    )
+            )
+            .neonGlow(
+                color: color,
+                radius: configuration.isPressed ? 4 : 8,
+                intensity: configuration.isPressed ? 0.7 : 0.9
+            )
+            .scaleEffect(configuration.isPressed ? 0.85 : 1.0)
+            .brightness(configuration.isPressed ? 0.1 : 0.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+/// コンパクトネオンハードドロップボタンスタイル
+struct NeonCompactHardDropButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title3)
+            .fontWeight(.black)
+            .foregroundColor(.white)
+            .frame(width: 45, height: 35)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(
+                        LinearGradient(
+                            colors: [NeonColors.neonOrange.opacity(0.9), NeonColors.neonOrange.opacity(0.6)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(NeonColors.neonOrange, lineWidth: 1.5)
+                    )
+            )
+            .neonGlow(
+                color: NeonColors.neonOrange,
+                radius: configuration.isPressed ? 6 : 10,
+                intensity: configuration.isPressed ? 0.8 : 1.0
+            )
+            .scaleEffect(configuration.isPressed ? 0.85 : 1.0)
+            .brightness(configuration.isPressed ? 0.2 : 0.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+/// コンパクトネオンソフトドロップボタンスタイル
+struct NeonCompactSoftDropButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .frame(width: 120, height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(
+                        LinearGradient(
+                            colors: [NeonColors.neonGreen.opacity(0.8), NeonColors.neonGreen.opacity(0.5)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 15)
+                            .stroke(NeonColors.neonGreen, lineWidth: 1.5)
+                    )
+            )
+            .neonGlow(
+                color: NeonColors.neonGreen,
+                radius: configuration.isPressed ? 4 : 8,
+                intensity: configuration.isPressed ? 0.7 : 0.9
+            )
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .brightness(configuration.isPressed ? 0.1 : 0.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+/// レガシー - ネオンゲームコントロールボタンスタイル
+struct NeonGameControlButtonStyle: ButtonStyle {
+    let color: Color
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title2)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .frame(width: 50, height: 40)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.8), color.opacity(0.6)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(color, lineWidth: 1.5)
+                    )
+            )
+            .neonGlow(
+                color: color,
+                radius: configuration.isPressed ? 6 : 12,
+                intensity: configuration.isPressed ? 0.8 : 1.0
+            )
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .brightness(configuration.isPressed ? 0.1 : 0.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Legacy Button Styles for Compatibility
 
 struct CompactControlButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -814,6 +1189,138 @@ struct CompactButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .shadow(color: .blue, radius: configuration.isPressed ? 6 : 3) // ネオングロー
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+/// ゲーム用軽量パーティクル背景
+struct NeonGameParticleBackground: View {
+    @State private var particles: [NeonGameParticle] = []
+    @State private var animationTimer: Timer?
+    
+    var body: some View {
+        ZStack {
+            ForEach(particles, id: \.id) { particle in
+                Circle()
+                    .fill(particle.color)
+                    .frame(width: particle.size, height: particle.size)
+                    .position(particle.position)
+                    .opacity(particle.opacity)
+                    .blur(radius: particle.blur)
+                    .neonGlow(color: particle.color, radius: particle.size * 0.3, intensity: 0.4)
+            }
+        }
+        .onAppear {
+            generateParticles()
+            startAnimation()
+        }
+        .onDisappear {
+            animationTimer?.invalidate()
+        }
+    }
+    
+    private func generateParticles() {
+        particles = (0..<8).map { _ in  // ゲーム中は少なめに
+            NeonGameParticle(
+                position: CGPoint(
+                    x: CGFloat.random(in: 0...UIScreen.main.bounds.width),
+                    y: CGFloat.random(in: 0...UIScreen.main.bounds.height)
+                ),
+                color: [NeonColors.neonPink, NeonColors.neonCyan, NeonColors.neonPurple].randomElement()!,
+                size: CGFloat.random(in: 1...4),  // 小さめ
+                opacity: Double.random(in: 0.2...0.5),  // 控えめ
+                blur: CGFloat.random(in: 1...2)
+            )
+        }
+    }
+    
+    private func startAnimation() {
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in  // 低頻度
+            withAnimation(.linear(duration: 0.2)) {
+                for i in particles.indices {
+                    particles[i].position.x += CGFloat.random(in: -0.5...0.5)  // ゆっくり
+                    particles[i].position.y += CGFloat.random(in: -0.5...0.5)
+                    particles[i].opacity = Double.random(in: 0.1...0.6)
+                    
+                    // 画面外に出たら反対側から再登場
+                    if particles[i].position.x < 0 {
+                        particles[i].position.x = UIScreen.main.bounds.width
+                    } else if particles[i].position.x > UIScreen.main.bounds.width {
+                        particles[i].position.x = 0
+                    }
+                    
+                    if particles[i].position.y < 0 {
+                        particles[i].position.y = UIScreen.main.bounds.height
+                    } else if particles[i].position.y > UIScreen.main.bounds.height {
+                        particles[i].position.y = 0
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// ゲーム用パーティクル構造体
+struct NeonGameParticle {
+    let id = UUID()
+    var position: CGPoint
+    let color: Color
+    let size: CGFloat
+    var opacity: Double
+    let blur: CGFloat
+}
+
+/// result.pngフルスクリーン表示ビュー
+struct NeonResultFullScreenView: View {
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        ZStack {
+            // 半透明背景
+            Color.black.opacity(0.9)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    onDismiss()
+                }
+            
+            VStack(spacing: 20) {
+                // result.png画像を表示
+                Image("result")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: UIScreen.main.bounds.width * 0.9)
+                    .frame(maxHeight: UIScreen.main.bounds.height * 0.7)
+                    .neonGlow(color: NeonColors.neonPink, radius: 20, intensity: 1.0)
+                    .onTapGesture {
+                        onDismiss()
+                    }
+                
+                // 閉じるボタン
+                Button("閉じる") {
+                    onDismiss()
+                }
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 25)
+                        .fill(
+                            LinearGradient(
+                                colors: [NeonColors.neonOrange, NeonColors.neonPink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 25)
+                                .stroke(NeonColors.neonOrange, lineWidth: 2)
+                        )
+                )
+                .neonGlow(color: NeonColors.neonOrange, radius: 12, intensity: 1.0)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: true)
     }
 }
 
