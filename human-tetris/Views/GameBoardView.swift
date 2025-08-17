@@ -11,6 +11,13 @@ struct GameBoardView: View {
     @ObservedObject var gameCore: GameCore
     let targetSize: CGSize
     
+    // アニメーション状態
+    @State private var animationPhase: Double = 0
+    @State private var shakeOffset: CGFloat = 0
+    @State private var scaleEffect: CGFloat = 1.0
+    @State private var boardGlow: Bool = false
+    @State private var pieceDropAnimation: Bool = false
+    
     init(gameCore: GameCore, targetSize: CGSize = CGSize(width: 250, height: 500)) {
         self.gameCore = gameCore
         self.targetSize = targetSize
@@ -55,7 +62,8 @@ struct GameBoardView: View {
                 CurrentPieceView(
                     piece: currentPiece,
                     position: gameCore.gameState.currentPosition,
-                    cellSize: cellSize
+                    cellSize: cellSize,
+                    isDropping: pieceDropAnimation
                 )
             }
         }
@@ -66,6 +74,31 @@ struct GameBoardView: View {
         .background(Color.black.opacity(0.8))
         .border(Color.white.opacity(0.5), width: 2)
         .cornerRadius(4)
+        .offset(x: shakeOffset)
+        .scaleEffect(scaleEffect)
+        .shadow(color: boardGlow ? .cyan.opacity(0.6) : .clear, radius: boardGlow ? 8 : 0)
+        .animation(.easeInOut(duration: 0.3), value: boardGlow)
+        .onReceive(gameCore.$isAnimating) { isAnimating in
+            if isAnimating {
+                triggerLineClearAnimation()
+            }
+        }
+        .onChange(of: gameCore.gameState.linesCleared) { _, newLines in
+            if newLines > 0 {
+                triggerScoreAnimation()
+                // ボードグローエフェクト
+                boardGlow = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    boardGlow = false
+                }
+            }
+        }
+        .onChange(of: gameCore.gameState.currentPiece) { oldPiece, newPiece in
+            if oldPiece != nil && newPiece != nil {
+                // 新しいピースがスポーンした時のアニメーション
+                triggerPieceSpawnAnimation()
+            }
+        }
     }
 }
 
@@ -119,6 +152,14 @@ struct CurrentPieceView: View {
     let piece: Polyomino
     let position: (x: Int, y: Int)
     let cellSize: CGFloat
+    let isDropping: Bool
+    
+    init(piece: Polyomino, position: (x: Int, y: Int), cellSize: CGFloat, isDropping: Bool = false) {
+        self.piece = piece
+        self.position = position
+        self.cellSize = cellSize
+        self.isDropping = isDropping
+    }
     
     var body: some View {
         ForEach(Array(piece.cells.enumerated()), id: \.offset) { index, cell in
@@ -130,15 +171,21 @@ struct CurrentPieceView: View {
                 CellView(
                     state: .filled(color: 2),
                     cellSize: cellSize,
-                    animated: false
+                    animated: true
                 )
                 .position(
                     x: CGFloat(x) * cellSize + cellSize / 2,
                     y: CGFloat(y) * cellSize + cellSize / 2
                 )
+                .scaleEffect(isDropping ? 1.1 : 1.0)
+                .shadow(color: .cyan.opacity(0.6), radius: isDropping ? 4 : 0)
                 .animation(
-                    .easeInOut(duration: 0.1),
+                    .easeInOut(duration: 0.15),
                     value: "\(position.x),\(position.y)"
+                )
+                .animation(
+                    .spring(response: 0.3, dampingFraction: 0.7),
+                    value: isDropping
                 )
             }
         }
@@ -175,6 +222,8 @@ struct CellView: View {
     let cellSize: CGFloat
     let animated: Bool
     
+    @State private var shimmerOffset: CGFloat = -1.0
+    
     var body: some View {
         Group {
             switch state {
@@ -196,24 +245,36 @@ struct CellView: View {
                         )
                         .frame(width: cellSize, height: cellSize)
                     
+                    // シマーエフェクトを追加
                     Rectangle()
                         .fill(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    Color.white.opacity(0.3),
+                                    Color.white.opacity(0.4),
+                                    Color.white.opacity(0.1),
                                     Color.clear
                                 ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                                startPoint: UnitPoint(x: shimmerOffset, y: 0),
+                                endPoint: UnitPoint(x: shimmerOffset + 0.3, y: 1)
                             )
                         )
                         .frame(width: cellSize, height: cellSize)
+                        .onAppear {
+                            if animated {
+                                withAnimation(
+                                    .linear(duration: 2.0).repeatForever(autoreverses: false)
+                                ) {
+                                    shimmerOffset = 1.3
+                                }
+                            }
+                        }
                 }
             }
         }
-        .scaleEffect(animated ? 1.0 : 0.9)
+        .scaleEffect(animated ? 1.0 : 0.95)
+        .opacity(animated ? 1.0 : 0.9)
         .animation(
-            animated ? .spring(response: 0.3, dampingFraction: 0.8) : nil,
+            animated ? .spring(response: 0.4, dampingFraction: 0.7) : .easeInOut(duration: 0.2),
             value: state
         )
     }
@@ -230,6 +291,43 @@ struct CellView: View {
         ]
         
         return colors[min(colorIndex, colors.count - 1)]
+    }
+}
+
+// MARK: - GameBoardView Animation Extensions
+
+extension GameBoardView {
+    private func triggerLineClearAnimation() {
+        // ライン消去時のシェイクアニメーション
+        withAnimation(.easeInOut(duration: 0.1).repeatCount(3, autoreverses: true)) {
+            shakeOffset = 5
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            shakeOffset = 0
+        }
+    }
+    
+    private func triggerScoreAnimation() {
+        // スコア獲得時のスケールアニメーション
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            scaleEffect = 1.05
+        }
+        
+        withAnimation(.easeOut(duration: 0.2).delay(0.1)) {
+            scaleEffect = 1.0
+        }
+    }
+    
+    private func triggerPieceSpawnAnimation() {
+        // 新しいピーススポーン時のアニメーション
+        withAnimation(.easeOut(duration: 0.2)) {
+            pieceDropAnimation = true
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            pieceDropAnimation = false
+        }
     }
 }
 

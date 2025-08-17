@@ -6,11 +6,21 @@
 //
 
 import SwiftUI
+import AVFoundation
 
 struct HomeView: View {
     @State private var showingGame = false
     @State private var showingSettings = false
     @State private var showingHowTo = false
+    
+    // 音声管理
+    private func playMenuBGM() {
+        AudioManager.shared.playMenuBGM()
+    }
+    
+    private func playButtonSound() {
+        AudioManager.shared.playButtonSound()
+    }
     
     var body: some View {
         NavigationView {
@@ -41,11 +51,17 @@ struct HomeView: View {
                             MenuButton(title: "ゲームスタート", icon: "play.fill", color: .green)
                         }
                         
-                        Button(action: { showingHowTo = true }) {
+                        Button(action: { 
+                            playButtonSound()
+                            showingHowTo = true 
+                        }) {
                             MenuButton(title: "遊び方", icon: "questionmark.circle.fill", color: .blue)
                         }
                         
-                        Button(action: { showingSettings = true }) {
+                        Button(action: { 
+                            playButtonSound()
+                            showingSettings = true 
+                        }) {
                             MenuButton(title: "設定", icon: "gearshape.fill", color: .gray)
                         }
                     }
@@ -59,6 +75,11 @@ struct HomeView: View {
                 }
                 .padding()
             }
+        }
+        .onAppear {
+            // デバッグ用：音声ファイルの存在確認
+            AudioManager.shared.testAudioFiles()
+            playMenuBGM()
         }
         .sheet(isPresented: $showingHowTo) {
             HowToPlayView()

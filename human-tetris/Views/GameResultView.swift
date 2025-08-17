@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import AVFoundation
 
 struct GameResultView: View {
     let finalScore: Int
@@ -18,6 +19,15 @@ struct GameResultView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showingShareSheet = false
     @State private var newRecord = false
+    
+    // 音声管理
+    private func playMenuBGM() {
+        AudioManager.shared.playMenuBGM()
+    }
+    
+    private func playButtonSound() {
+        AudioManager.shared.playButtonSound()
+    }
     
     var body: some View {
         ZStack {
@@ -75,17 +85,20 @@ struct GameResultView: View {
                 VStack(spacing: 15) {
                     HStack(spacing: 15) {
                         Button("もう一度") {
+                            playButtonSound()
                             onReplay()
                         }
                         .buttonStyle(PrimaryGameButtonStyle())
                         
                         Button("スクリーンショット") {
+                            playButtonSound()
                             shareScreenshot()
                         }
                         .buttonStyle(SecondaryGameButtonStyle())
                     }
                     
                     Button("ホームに戻る") {
+                        playButtonSound()
                         onExit()
                     }
                     .buttonStyle(TertiaryGameButtonStyle())
@@ -96,6 +109,7 @@ struct GameResultView: View {
             .padding()
         }
         .onAppear {
+            playMenuBGM()
             saveGameResult()
             checkForNewRecord()
         }

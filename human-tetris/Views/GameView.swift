@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AVFoundation
 
 struct GameView: View {
     @ObservedObject var gameCore: GameCore
@@ -18,9 +19,32 @@ struct GameView: View {
     @State private var lines = 0
     @State private var elapsedTime: TimeInterval = 0
     @State private var gameTimer: Timer?
+    
+    // UI フィードバック強化用の状態
+    @State private var scoreAnimationTrigger: Int = 0
+    @State private var levelUpAnimationTrigger: Int = 0
+    @State private var gameBoardPulse: Bool = false
+    @State private var isGameActive: Bool = false
 
     // 表情認識マネージャー
     @StateObject private var facialExpressionManager = FacialExpressionManager()
+    
+    // 音声管理
+    private func playButtonSound() {
+        AudioManager.shared.playButtonSound()
+    }
+    
+    private func playGameBGM() {
+        AudioManager.shared.playGameBGM()
+    }
+    
+    private func playMenuBGM() {
+        AudioManager.shared.playMenuBGM()
+    }
+    
+    private func playScoreSound() {
+        AudioManager.shared.playScoreSound()
+    }
 
     @Environment(\.dismiss) private var dismiss
 
@@ -41,36 +65,16 @@ struct GameView: View {
             let gameBoardHeight = min(400, availableHeight * 0.8)
 
             VStack(spacing: 0) {
-                // 上部：スコア表示と表情認識を統合
-                ZStack {
-                    // スコア表示（背景）
-                    GameInfoBar(
-                        score: score,
-                        lines: lines,
-                        time: elapsedTime,
-                        gameOver: gameCore.gameState.gameOver,
-                        dropSpeedMultiplier: gameCore.currentDropSpeedMultiplier
-                    )
-                    .frame(height: topBarHeight)
-                    .background(Color.black.opacity(0.3))
-
-                    // 表情認識オーバーレイ（右上に配置）
-                    HStack {
-                        Spacer()
-
-                        FacialExpressionOverlay(
-                            expression: facialExpressionManager.currentExpression,
-                            confidence: facialExpressionManager.confidence,
-                            isFaceDetected: facialExpressionManager.isFaceDetected,
-                            isTracking: facialExpressionManager.isTracking,
-                            currentDropSpeedMultiplier: gameCore.currentDropSpeedMultiplier,
-                            isARKitSupported: facialExpressionManager.isARKitSupported
-                        )
-                        .frame(maxWidth: min(180, screenWidth * 0.4))
-                        .padding(.trailing, 8)
-                        .padding(.top, 4)
-                    }
-                }
+                // 上部：スコア表示
+                GameInfoBar(
+                    score: score,
+                    lines: lines,
+                    time: elapsedTime,
+                    gameOver: gameCore.gameState.gameOver,
+                    dropSpeedMultiplier: gameCore.currentDropSpeedMultiplier
+                )
+                .frame(height: topBarHeight)
+                .background(Color.black.opacity(0.3))
 
                 // 中央：ゲーム盤面
                 HStack(spacing: spacing) {
@@ -95,10 +99,35 @@ struct GameView: View {
                                 width: maxGameBoardWidth, height: gameBoardHeight)
                         )
                         .scaleEffect(boardScale)
+                        .scaleEffect(gameBoardPulse ? 1.02 : 1.0)
+                        .brightness(isGameActive ? 0.0 : -0.3)
+                        .saturation(isGameActive ? 1.0 : 0.7)
+                        .animation(.easeInOut(duration: 0.3), value: isGameActive)
 
                         // 次ピース待機表示
                         if gameCore.waitingForNextPiece {
                             WaitingForPieceOverlay()
+                        }
+                        
+                        // ゲームオーバー時のオーバーレイ
+                        if gameCore.gameState.gameOver {
+                            VStack(spacing: 20) {
+                                Text("🚫")
+                                    .font(.system(size: 60))
+                                Text("GAME OVER")
+                                    .font(.largeTitle)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.red)
+                                Text("結果を確認中...")
+                                    .font(.headline)
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            .padding(40)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(Color.black.opacity(0.9))
+                            )
+                            .transition(.opacity)
                         }
                     }
                     .frame(width: maxGameBoardWidth, height: gameBoardHeight)
@@ -106,6 +135,36 @@ struct GameView: View {
                     // 右側：統計情報
                     VStack(spacing: 8) {
                         StatsView(gameState: gameCore.gameState)
+                        
+                        // ゲーム状態インジケーター
+                        VStack(spacing: 6) {
+                            if gameCore.isAnimating {
+                                HStack(spacing: 4) {
+                                    Circle()
+                                        .fill(Color.orange)
+                                        .frame(width: 6, height: 6)
+                                        .scaleEffect(1.2)
+                                        .animation(
+                                            .easeInOut(duration: 0.3).repeatForever(autoreverses: true),
+                                            value: gameCore.isAnimating
+                                        )
+                                    Text("処理中")
+                                        .font(.caption2)
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                            
+                            if gameCore.waitingForNextPiece {
+                                HStack(spacing: 4) {
+                                    Circle()
+                                        .fill(Color.cyan)
+                                        .frame(width: 6, height: 6)
+                                    Text("待機中")
+                                        .font(.caption2)
+                                        .foregroundColor(.cyan)
+                                }
+                            }
+                        }
 
                         Spacer()
                     }
@@ -149,17 +208,60 @@ struct GameView: View {
         .onDisappear {
             gameTimer?.invalidate()
             facialExpressionManager.stopTracking()
+            // BGM停止（一時的に空実装）
         }
         .onChange(of: gameCore.gameState.gameOver) { _, gameOver in
             if gameOver {
+                // BGM停止（一時的に空実装）
+                playMenuBGM()
                 endGame()
             }
         }
-        .onChange(of: gameCore.gameState.score) { _, newScore in
+        .onChange(of: gameCore.gameState.score) { oldScore, newScore in
+            let scoreDiff = newScore - oldScore
+            if scoreDiff > 0 {
+                // スコア獲得時の効果音
+                playScoreSound()
+                
+                // スコア獲得時のアニメーション
+                withAnimation(.bouncy(duration: 0.4)) {
+                    scoreAnimationTrigger += 1
+                }
+                // 大きなスコア獲得時の追加エフェクト
+                if scoreDiff >= 400 {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        gameBoardPulse.toggle()
+                    }
+                }
+            }
             score = newScore
         }
-        .onChange(of: gameCore.gameState.linesCleared) { _, newLines in
+        .onChange(of: gameCore.gameState.linesCleared) { oldLines, newLines in
+            let lineDiff = newLines - oldLines
+            if lineDiff > 0 {
+                // ライン消去時のアニメーション
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    boardScale = 1.05
+                }
+                withAnimation(.easeOut(duration: 0.3).delay(0.2)) {
+                    boardScale = 0.8
+                }
+                
+                // レベルアップチェック
+                let oldLevel = (oldLines / 10) + 1
+                let newLevel = (newLines / 10) + 1
+                if newLevel > oldLevel {
+                    withAnimation(.bouncy(duration: 0.6)) {
+                        levelUpAnimationTrigger += 1
+                    }
+                }
+            }
             lines = newLines
+        }
+        .onChange(of: gameCore.isGameRunning) { _, isRunning in
+            withAnimation(.easeInOut(duration: 0.4)) {
+                isGameActive = isRunning
+            }
         }
         .sheet(isPresented: $showingResult) {
             GameResultView(
@@ -180,6 +282,9 @@ struct GameView: View {
         print("GameView: startGame() called")
         print(
             "GameView: Initial piece has \(initialPiece.cells.count) cells: \(initialPiece.cells)")
+
+        // ゲーム中のBGMを開始
+        playGameBGM()
 
         // ゲームを先に開始
         print("GameView: Calling gameCore.startGame()")
@@ -468,6 +573,10 @@ struct StatItem: View {
 
 struct GameControlsView: View {
     @ObservedObject var gameCore: GameCore
+    
+    private func playButtonSound() {
+        AudioManager.shared.playButtonSound()
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -476,6 +585,7 @@ struct GameControlsView: View {
                 GameButton(
                     icon: "arrowshape.left.fill",
                     action: {
+                        playButtonSound()
                         _ = gameCore.movePiece(dx: -1)
                     }
                 )
@@ -486,6 +596,7 @@ struct GameControlsView: View {
                 GameButton(
                     icon: "arrow.clockwise",
                     action: {
+                        playButtonSound()
                         _ = gameCore.rotatePiece()
                     }
                 )
@@ -496,6 +607,7 @@ struct GameControlsView: View {
                 GameButton(
                     icon: "arrowshape.right.fill",
                     action: {
+                        playButtonSound()
                         _ = gameCore.movePiece(dx: 1)
                     }
                 )
@@ -511,6 +623,7 @@ struct GameControlsView: View {
                 GameButton(
                     icon: "arrowshape.down.fill",
                     action: {
+                        playButtonSound()
                         gameCore.hardDrop()
                     },
                     style: .secondary
@@ -522,6 +635,7 @@ struct GameControlsView: View {
                 GameButton(
                     icon: gameCore.isGameRunning ? "pause.fill" : "play.fill",
                     action: {
+                        playButtonSound()
                         if gameCore.isGameRunning {
                             gameCore.pauseGame()
                         } else {
@@ -569,10 +683,15 @@ struct GameButton: View {
 
 struct SoftDropButton: View {
     @ObservedObject var gameCore: GameCore
+    
+    private func playButtonSound() {
+        AudioManager.shared.playButtonSound()
+    }
 
     var body: some View {
         Button("↓") {
             // タップ時は1回だけ下に移動
+            playButtonSound()
             _ = gameCore.movePiece(dx: 0, dy: 1)
         }
         .font(.title2)

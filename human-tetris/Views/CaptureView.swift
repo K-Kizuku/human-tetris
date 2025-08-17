@@ -15,6 +15,15 @@ struct CaptureView: View, GamePieceProvider {
     @StateObject private var quantizationProcessor = QuantizationProcessor()
     @StateObject private var shapeExtractor = ShapeExtractor()
     @StateObject private var gameCore = GameCore()
+    
+    // 音声管理
+    private func playMenuBGM() {
+        AudioManager.shared.playMenuBGM()
+    }
+    
+    private func playButtonSound() {
+        AudioManager.shared.playButtonSound()
+    }
 
     @State private var roiFrame = CGRect(x: 100, y: 200, width: 200, height: 150)
     @State private var currentIoU: Float = 0.0
@@ -135,6 +144,7 @@ struct CaptureView: View, GamePieceProvider {
 
                         if quantizationProcessor.isStable && currentIoU >= 0.6 {
                             Button("ピース確定") {
+                                playButtonSound()
                                 confirmPiece()
                             }
                             .buttonStyle(PrimaryButtonStyle())
@@ -145,6 +155,7 @@ struct CaptureView: View, GamePieceProvider {
                             // シミュレータ用のテストボタン
                             if !facialExpressionManager.isTracking {
                                 Button("テストピース生成") {
+                                    playButtonSound()
                                     generateTestPiece()
                                 }
                                 .buttonStyle(PrimaryButtonStyle())
@@ -153,6 +164,7 @@ struct CaptureView: View, GamePieceProvider {
 
                         HStack {
                             Button("戻る") {
+                                playButtonSound()
                                 dismiss()
                             }
                             .buttonStyle(SecondaryButtonStyle())
@@ -160,6 +172,7 @@ struct CaptureView: View, GamePieceProvider {
                             Spacer()
 
                             Button(visionProcessor.detectionEnabled ? "一時停止" : "再開") {
+                                playButtonSound()
                                 visionProcessor.toggleDetection()
                             }
                             .buttonStyle(SecondaryButtonStyle())
@@ -171,6 +184,7 @@ struct CaptureView: View, GamePieceProvider {
             }
         }
         .onAppear {
+            playMenuBGM()
             setupProcessors()
         }
         .sheet(isPresented: $showingGame) {
